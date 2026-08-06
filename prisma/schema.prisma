@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+
+enum Handedness {
+  RIGHT
+  LEFT
+}
+enum ExerciseType {
+  CHROMATIC
+  SCALE
+  FINGER_DEXTERITY
+}
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+enum SessionStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+enum AnalysisStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+enum FeedbackCategory {
+  PITCH
+  RHYTHM
+  TECHNIQUE
+  BEND
+  OTHER
+}
+enum FeedbackSeverity {
+  INFO
+  WARNING
+  ERROR
+}
+
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  passwordHash String
+  displayName String?
+  handedness Handedness @default(RIGHT)
+  tuning String @default("E2,A2,D3,G3,B3,E4")
+  timezone String @default("UTC")
+  refreshTokenHash String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions PracticeSession[]
+  progress UserProgress?
+}
+
+model Exercise {
+  id String @id @default(cuid())
+  slug String @unique
+  type ExerciseType
+  difficulty Difficulty @default(BEGINNER)
+  title String
+  description String?
+  instructions String?
+  configuration Json
+  referenceAudioUrl String?
+  isPublished Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions PracticeSession[]
+  @@index([type, difficulty, isPublished])
+}
+
+model PracticeSession {
+  id String @id @default(cuid())
+  userId String
+  exerciseId String?
+  pieceTitle String?
+  sheetMusicUrl String?
+  backingTrackUrl String?
+  status SessionStatus @default(IN_PROGRESS)
+  startedAt DateTime @default(now())
+  completedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise? @relation(fields: [exerciseId], references: [id], onDelete: SetNull)
+  recordings PerformanceRecording[]
+  @@index([userId, startedAt])
+  @@index([exerciseId])
+}
+
+model PerformanceRecording {
+  id String @id @default(cuid())
+  sessionId String
+  storageKey String @unique
+  mimeType String
+  durationMs Int?
+  recordedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  session PracticeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  analysis PerformanceAnalysis?
+  @@index([sessionId, recordedAt])
+}
+
+model PerformanceAnalysis {
+  id String @id @default(cuid())
+  recordingId String @unique
+  status AnalysisStatus @default(QUEUED)
+  modelVersion String?
+  overallScore Float?
+  pitchScore Float?
+  rhythmScore Float?
+  techniqueScore Float?
+  summary String?
+  errorMessage String?
+  startedAt DateTime?
+  completedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  recording PerformanceRecording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  feedback PerformanceFeedback[]
+  @@index([status, createdAt])
+}
+
+model PerformanceFeedback {
+  id String @id @default(cuid())
+  analysisId String
+  category FeedbackCategory
+  severity FeedbackSeverity
+  startMs Int?
+  endMs Int?
+  message String
+  suggestion String?
+  metadata Json?
+  createdAt DateTime @default(now())
+  analysis PerformanceAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  @@index([analysisId, startMs])
+}
+
+model UserProgress {
+  id String @id @default(cuid())
+  userId String @unique
+  totalSessions Int @default(0)
+  totalPracticeSeconds Int @default(0)
+  currentDayStreak Int @default(0)
+  longestDayStreak Int @default(0)
+  lastPracticedOn DateTime?
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
