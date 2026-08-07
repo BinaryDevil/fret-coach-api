@@ -12,6 +12,9 @@ export class ExercisesController {
   @Get() list(@Query() query: ListExercisesDto) {
     return this.exercises.list(query);
   }
+  @Get('slug/:slug') getBySlug(@Param('slug') slug: string) {
+    return this.exercises.getBySlug(slug);
+  }
   @Get(':id') get(@Param('id') id: string) {
     return this.exercises.get(id);
   }

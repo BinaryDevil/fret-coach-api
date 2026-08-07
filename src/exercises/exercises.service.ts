@@ -80,4 +80,9 @@ export class ExercisesService {
     if (!exercise) throw new NotFoundException('Exercise not found');
     return exercise;
   }
+  async getBySlug(slug: string) {
+    const exercise = await this.prisma.exercise.findFirst({ where: { slug, isPublished: true }, select: { id: true } });
+    if (!exercise) throw new NotFoundException('Exercise not found');
+    return this.get(exercise.id);
+  }
 }
