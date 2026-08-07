@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProgressService } from '../progress/progress.service';
-import { CreateSessionDto } from './dto/create-session.dto';
 import { CreateRecordingDto } from './dto/create-recording.dto';
+import { CreateSessionDto } from './dto/create-session.dto';
 @Injectable()
 export class PracticeSessionsService {
   constructor(
@@ -10,23 +10,26 @@ export class PracticeSessionsService {
     private readonly progress: ProgressService,
   ) {}
   async create(userId: string, dto: CreateSessionDto) {
-    if (Boolean(dto.exerciseId) === Boolean(dto.pieceTitle))
-      throw new BadRequestException('Provide exactly one of exerciseId or pieceTitle');
-    if (dto.exerciseId) {
-      const exercise = await this.prisma.exercise.findFirst({
-        where: { id: dto.exerciseId, isPublished: true },
-      });
-      if (!exercise) throw new NotFoundException('Exercise not found');
-    }
+    const exercise = await this.prisma.exercise.findFirst({
+      where: { id: dto.exerciseId, isPublished: true },
+      include: { score: true },
+    });
+    if (!exercise?.score) throw new NotFoundException('Playable exercise not found');
+    const loopRegion = dto.loopRegionId
+      ? await this.prisma.loopRegion.findFirst({
+          where: { id: dto.loopRegionId, exerciseId: dto.exerciseId },
+        })
+      : null;
+    if (dto.loopRegionId && !loopRegion)
+      throw new BadRequestException('Loop region does not belong to exercise');
     return this.prisma.practiceSession.create({
       data: {
         userId,
         exerciseId: dto.exerciseId,
-        pieceTitle: dto.pieceTitle,
-        sheetMusicUrl: dto.sheetMusicUrl,
-        backingTrackUrl: dto.backingTrackUrl,
+        loopRegionId: dto.loopRegionId,
+        targetBpm: dto.targetBpm ?? loopRegion?.defaultBpm ?? exercise.score.defaultBpm,
       },
-      include: { exercise: true },
+      include: { exercise: { include: { score: true } }, loopRegion: true },
     });
   }
   async addRecording(userId: string, sessionId: string, dto: CreateRecordingDto) {
@@ -38,21 +41,18 @@ export class PracticeSessionsService {
   }
   async complete(userId: string, sessionId: string) {
     const session = await this.prisma.practiceSession.findFirst({
-      where: { id: sessionId, userId },
+      where: { id: sessionId, userId, status: 'IN_PROGRESS' },
     });
-    if (!session) throw new NotFoundException('Practice session not found');
+    if (!session) throw new NotFoundException('Active practice session not found');
+    const durationSeconds = Math.max(
+      0,
+      Math.floor((Date.now() - session.startedAt.getTime()) / 1000),
+    );
     const completed = await this.prisma.practiceSession.update({
       where: { id: sessionId },
-      data: { status: 'COMPLETED', completedAt: new Date() },
-      include: { recordings: { select: { durationMs: true } } },
+      data: { status: 'COMPLETED', completedAt: new Date(), durationSeconds },
     });
-    await this.progress.recordSession(
-      userId,
-      completed.recordings?.reduce(
-        (total, recording) => total + Math.floor((recording.durationMs ?? 0) / 1000),
-        0,
-      ) ?? 0,
-    );
+    await this.progress.recordSession(userId, durationSeconds);
     return completed;
   }
 }

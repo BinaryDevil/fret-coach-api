@@ -44,6 +44,11 @@ enum FeedbackSeverity {
   WARNING
   ERROR
 }
+enum ScoreFormat {
+  GUITAR_PRO
+  MUSIC_XML
+  ALPHA_TEX
+}
 
 model User {
   id String @id @default(cuid())
@@ -74,7 +79,41 @@ model Exercise {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   sessions PracticeSession[]
+  score ExerciseScore?
+  loopRegions LoopRegion[]
   @@index([type, difficulty, isPublished])
+}
+
+model ExerciseScore {
+  id String @id @default(cuid())
+  exerciseId String @unique
+  format ScoreFormat
+  fileName String?
+  storageKey String?
+  content String?
+  timeSignature String @default("4/4")
+  defaultBpm Int
+  totalMeasures Int
+  backingTrackUrl String?
+  backingTrackOffsetMs Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+}
+
+model LoopRegion {
+  id String @id @default(cuid())
+  exerciseId String
+  title String
+  startMeasure Int
+  endMeasure Int
+  defaultBpm Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  sessions PracticeSession[]
+  @@unique([exerciseId, startMeasure, endMeasure])
+  @@index([exerciseId, startMeasure])
 }
 
 model PracticeSession {
@@ -84,6 +123,9 @@ model PracticeSession {
   pieceTitle String?
   sheetMusicUrl String?
   backingTrackUrl String?
+  loopRegionId String?
+  targetBpm Int?
+  durationSeconds Int?
   status SessionStatus @default(IN_PROGRESS)
   startedAt DateTime @default(now())
   completedAt DateTime?
@@ -91,9 +133,11 @@ model PracticeSession {
   updatedAt DateTime @updatedAt
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   exercise Exercise? @relation(fields: [exerciseId], references: [id], onDelete: SetNull)
+  loopRegion LoopRegion? @relation(fields: [loopRegionId], references: [id], onDelete: SetNull)
   recordings PerformanceRecording[]
   @@index([userId, startedAt])
   @@index([exerciseId])
+  @@index([loopRegionId])
 }
 
 model PerformanceRecording {

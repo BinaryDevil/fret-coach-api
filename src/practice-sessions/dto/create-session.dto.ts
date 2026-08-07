@@ -1,21 +1,15 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 export class CreateSessionDto {
-  @ApiPropertyOptional({ description: '练习库中的练习 ID；与 pieceTitle 二选一。' })
+  @ApiProperty({ description: '练习库中的练习 ID' }) @IsString() exerciseId!: string;
+  @ApiPropertyOptional({ description: '可选循环片段 ID' })
   @IsOptional()
   @IsString()
-  exerciseId?: string;
-  @ApiPropertyOptional({ description: '整曲练习名称；与 exerciseId 二选一。' })
+  loopRegionId?: string;
+  @ApiPropertyOptional({ minimum: 20, maximum: 400 })
   @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  pieceTitle?: string;
-  @ApiPropertyOptional({ description: '已上传曲谱的 URL。' })
-  @IsOptional()
-  @IsUrl()
-  sheetMusicUrl?: string;
-  @ApiPropertyOptional({ description: '伴奏 URL；后续可由伴奏生成服务填充。' })
-  @IsOptional()
-  @IsUrl()
-  backingTrackUrl?: string;
+  @IsInt()
+  @Min(20)
+  @Max(400)
+  targetBpm?: number;
 }
