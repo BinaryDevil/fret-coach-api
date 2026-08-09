@@ -4,8 +4,6 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ListExercisesDto } from './dto/list-exercises.dto';
 import { ExercisesService } from './exercises.service';
 @ApiTags('exercises')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('exercises')
 export class ExercisesController {
   constructor(private readonly exercises: ExercisesService) {}
@@ -15,6 +13,8 @@ export class ExercisesController {
   @Get('slug/:slug') getBySlug(@Param('slug') slug: string) {
     return this.exercises.getBySlug(slug);
   }
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Get(':id') get(@Param('id') id: string) {
     return this.exercises.get(id);
   }

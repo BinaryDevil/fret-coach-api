@@ -1,96 +1,104 @@
-# Fret Coach — 项目上下文
+# Fret Coach — Project Context
 
-> 此文件是跨会话、跨设备开发的持久交接记录。更新功能方向、关键技术选择或 API 合约后，应同步更新它。
+> This file is the persistent handoff record for cross-session and cross-device development. Update it whenever product direction, a key technical decision, or an API contract changes.
 
-## 产品目标
+## Product goal
 
-Fret Coach 是面向吉他学习者的 Web 产品。它帮助用户练习技术与整首歌曲，并逐步提供基于演奏音频的反馈。
+Fret Coach is a web product for guitar learners. It helps users practice techniques and complete songs, and will gradually provide feedback based on recorded performances.
 
-不是答题产品：不使用“题目答案”或“正确率”作为核心练习模型。
+It is not a quiz product: answer keys and correctness scores are not part of the core practice model.
 
-长期主链路：
+Long-term flow:
 
 ```text
-练习库 / 整曲练习 → 演奏录音 → 异步 AI 分析 → 音准、节奏、推弦与技巧反馈
+Practice library / full-song practice → performance recording → asynchronous AI analysis → pitch, rhythm, bend, and technique feedback
 ```
 
-## 当前阶段：练习库
+## Current stage: Practice library
 
-当前只实现练习库与基础练习记录，暂不实现录音输入、AI 判别、实时音高检测、曲谱上传或伴奏生成。
+The current scope is limited to the practice library and basic practice records. It does not yet include recording input, AI evaluation, real-time pitch detection, score uploads, or backing-track generation.
 
-用户可以：
+The product is currently in **guest practice mode**: users can go from “Start a session” to the practice library and an individual exercise without signing in. The client still sends credentials automatically when an authenticated session exists. Guests do not create practice records, so practice-session creation and completion plus progress endpoints still require authentication.
 
-1. 浏览爬格子、音阶和手指机动性练习；
-2. 查看六线谱；
-3. 选择 BPM 与循环小节；
-4. 开始和完成一次练习，保存时长及连续练习天数。
+Users can:
 
-## 谱面与播放方案
+1. Browse chromatic, scale, and finger-dexterity exercises.
+2. View tablature.
+3. Select a BPM and loop range.
+4. Start and complete a practice session, saving duration and daily streaks.
 
-前端使用 **alphaTab**，不要自行用 Canvas 绘制六线谱。
+## Score and playback approach
 
-- 支持格式：`GUITAR_PRO`、`MUSIC_XML`、`ALPHA_TEX`。
-- alphaTex 可直接从 API 的 `score.content` 读取。
-- Guitar Pro/MusicXML 后续通过对象存储 URL 加载；数据库先保存 `storageKey`。
-- 伴奏 `<audio>` 或 Web Audio 是唯一时间轴；alphaTab 负责播放光标、当前 beat/note 高亮、滚动和谱面同步。
-- `LoopRegion` 以小节范围保存循环配置。
+The client uses **alphaTab**; do not draw tablature manually with Canvas.
 
-首个练习：
+- Supported formats: `GUITAR_PRO`, `MUSIC_XML`, and `ALPHA_TEX`.
+- alphaTex can be read directly from the API's `score.content`.
+- Guitar Pro and MusicXML will later load from object-storage URLs; the database already stores `storageKey`.
+- A backing `<audio>` element or Web Audio is the sole time source. alphaTab provides the playback cursor, current beat/note highlighting, scrolling, and score synchronization.
+- `LoopRegion` stores loop configuration by measure range.
 
-- slug：`chromatic-1-2-3-4`
-- 标题：`1-2-3-4 爬格子`
-- 格式：alphaTex
-- 默认速度：60 BPM
-- 循环：第 1–2 小节（`完整循环`）
+First exercise:
 
-## 技术栈
+- Slug: `chromatic-1-2-3-4`
+- Title: `1-2-3-4 Full-Range Spider`
+- Format: alphaTex
+- Default tempo: 60 BPM
+- Content: play 1-2-3-4 from the low E string to the high E string, then return to the low E string (12 measures total)
+- Loop: measures 1–12 (`Full Loop`)
+
+The seed content, loop label, score title, API-facing descriptions, and project documentation are English-only.
+
+## Technology stack
 
 - Node.js + TypeScript + NestJS
-- PostgreSQL（当前使用 Supabase）+ Prisma
+- PostgreSQL (currently Supabase) + Prisma
 - REST API + Swagger
-- JWT access token + refresh token
-- Docker Compose 用于可选本地 PostgreSQL
-- ESLint、Prettier、Jest
+- JWT access tokens + refresh tokens
+- Docker Compose for optional local PostgreSQL
+- ESLint, Prettier, and Jest
 
-## 领域模型
+## Domain models
 
-| 模型 | 用途 |
-| --- | --- |
-| `User` | 账号、惯用手、调弦、时区和 refresh token hash |
-| `Exercise` | 练习的标题、类型、说明和训练配置 |
-| `ExerciseScore` | alphaTab 曲谱、默认 BPM、拍号、伴奏资源 |
-| `LoopRegion` | 指定练习内可循环的小节范围 |
-| `PracticeSession` | 用户练习选择的循环、BPM、时长和状态 |
-| `UserProgress` | 总练习数、总时长、连续练习天数 |
-| `PerformanceRecording` / `PerformanceAnalysis` / `PerformanceFeedback` | 预留给后续音频 AI 分析 |
+| Model                                                                  | Purpose                                                                  |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `User`                                                                 | Account, handedness, tuning, timezone, and refresh-token hash            |
+| `Exercise`                                                             | Exercise title, type, description, and training configuration            |
+| `ExerciseScore`                                                        | alphaTab score, default BPM, time signature, and backing-track resources |
+| `LoopRegion`                                                           | A repeatable measure range within an exercise                            |
+| `PracticeSession`                                                      | User-selected loop, BPM, duration, and status                            |
+| `UserProgress`                                                         | Total sessions, total duration, and daily streaks                        |
+| `PerformanceRecording` / `PerformanceAnalysis` / `PerformanceFeedback` | Reserved for future audio AI analysis                                    |
 
-数据库模型权威来源是 `prisma/schema.prisma`。迁移在 `prisma/migrations/`。
+`prisma/schema.prisma` is the authoritative source for the database models. Migrations live in `prisma/migrations/`.
 
 ## API
 
-API 基址：`http://localhost:3001/api/v1`
+API base URL: `http://localhost:3001/api/v1`
 
-Swagger：`http://localhost:3001/api/docs`
+Swagger: `http://localhost:3001/api/docs`
 
-健康检查：`GET /health`
+Health check: `GET /health`
 
-认证：
+Authentication:
 
 - `POST /auth/register`
 - `POST /auth/login`
 - `POST /auth/refresh`
 - `POST /auth/logout`
 
-练习库（均需 `Authorization: Bearer <accessToken>`）：
+Public practice-library reads (an authenticated client may optionally send `Authorization: Bearer <accessToken>`):
 
 - `GET /exercises`
 - `GET /exercises/slug/chromatic-1-2-3-4`
+
+The following endpoints require `Authorization: Bearer <accessToken>`:
+
 - `GET /exercises/:id`
 - `POST /practice-sessions`
 - `POST /practice-sessions/:id/complete`
 - `GET /progress/me`
 
-创建会话请求：
+Create-session request:
 
 ```json
 {
@@ -100,36 +108,36 @@ Swagger：`http://localhost:3001/api/docs`
 }
 ```
 
-## 本地运行
+## Local development
 
 ```bash
 npm install
 cp .env.example .env
-# 填入 DATABASE_URL 和 JWT secret；不要提交 .env
+# Set DATABASE_URL and JWT secrets; never commit .env
 npm run prisma:deploy
 npm run prisma:seed
 npm run start:dev
 ```
 
-端口约定：前端通常使用 `3000`，后端 `.env` 使用 `PORT=3001`。
+The frontend normally uses port `3000`; set the backend `PORT` to `3001` in `.env`.
 
-原生 SQL 初始数据：
+Raw SQL seed data:
 
 ```bash
 psql "$DATABASE_URL" -f prisma/seed.sql
 ```
 
-## 已知事项
+## Known notes
 
-- `joi` 必须使用 `import * as Joi from 'joi'`，否则运行时为 `undefined`。
-- 生产启动脚本是 `node dist/src/main`，原因是当前 TypeScript 构建结构输出到 `dist/src/`。
-- Prisma CLI 会提示 package.json 中的 `prisma.seed` 配置未来弃用；尚未阻塞开发，未来可迁移到 `prisma.config.ts`。
-- `.env`、`node_modules` 不进入 Git；Supabase 连接串和 JWT secret 需在各设备独立注入。
+- `joi` must use `import * as Joi from 'joi'`; otherwise it is `undefined` at runtime.
+- The production start script is `node dist/src/main` because the current TypeScript build output is under `dist/src/`.
+- Prisma warns that the `prisma.seed` package.json configuration will be deprecated. This does not block development; migrate it to `prisma.config.ts` in the future.
+- Do not commit `.env` or `node_modules`. Inject Supabase connection strings and JWT secrets independently on each device.
 
-## 后续优先级
+## Next priorities
 
-1. 前端实现 alphaTab 练习详情页、BPM 控制和循环播放。
-2. 添加更多练习内容与内容管理流程。
-3. 接入对象存储的预签名上传，供 GP/MusicXML 和伴奏文件使用。
-4. 加入录音采集与后台队列。
-5. 实现音高、节奏、推弦与技巧分析，并以统一毫秒时间轴返回反馈。
+1. Capture guitar audio input in the frontend and define the recording-upload flow.
+2. Build the alphaTab exercise-detail page, BPM controls, and loop playback in the frontend.
+3. Add more exercises and a content-management workflow.
+4. Add pre-signed object-storage uploads for Guitar Pro, MusicXML, and backing-track files.
+5. Add a background queue, then implement pitch, rhythm, bend, and technique analysis on a unified millisecond timeline.

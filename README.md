@@ -1,48 +1,48 @@
 # Fret Coach API
 
-Fret Coach 是为吉他爱好者提供演奏训练与反馈的后端基础。第一个功能是练习库：用户选择爬格子、音阶或手指机动性训练，查看六线谱，按 BPM 跟随伴奏并循环指定小节。
+Fret Coach provides a backend foundation for guitar practice and performance feedback. Its first feature is a practice library where users choose chromatic, scale, or finger-dexterity exercises, view tablature, follow a BPM, and loop selected measures.
 
-这不是答题型产品。服务端不存储标准答案，也不处理“答对/答错”。
+This is not a quiz product. The service does not store answer keys or model practice as right or wrong answers.
 
-## 当前架构边界
+## Current architecture boundary
 
-`Exercise` 描述训练目标；`ExerciseScore` 存储 alphaTab 可加载的 Guitar Pro、MusicXML 或 alphaTex 曲谱，以及默认 BPM 和伴奏；`LoopRegion` 保存可循环的小节范围；`PracticeSession` 保存用户实际选择的循环与 BPM、时长和完成状态。
+`Exercise` describes a training goal. `ExerciseScore` stores alphaTab-loadable Guitar Pro, MusicXML, or alphaTex scores together with a default BPM and backing track. `LoopRegion` stores repeatable measure ranges, and `PracticeSession` stores the selected loop, BPM, duration, and completion status.
 
-前端使用 **alphaTab** 渲染六线谱和播放高亮。伴奏 `<audio>` / Web Audio 是唯一时间轴，alphaTab 仅跟随同步；后续实时音高检测将与该时间轴上的当前目标音比较。
+The client uses **alphaTab** for tablature rendering and playback highlighting. A backing `<audio>` element or Web Audio is the single time source; alphaTab follows that source for synchronization. Future real-time pitch detection will compare notes against the target note at that time.
 
-此阶段只建立 AI 分析的异步 API 契约和持久化模型：`POST /recordings/:id/analysis` 创建 `QUEUED` 分析记录。实际音频转写、节拍/音高检测、推弦检测和队列 worker 将在后续接入，不会阻塞基础 API 的迭代。
+At this stage, the project only defines the asynchronous API contract and persistence models for AI analysis: `POST /recordings/:id/analysis` creates a `QUEUED` analysis record. Audio transcription, beat and pitch detection, bend detection, and queue workers will be added later without blocking the core API.
 
-## 本地启动
+## Local setup
 
 1. `npm install`
-2. `cp .env.example .env`，生产环境请替换两个 JWT secret。
+2. `cp .env.example .env`, then replace both JWT secrets for production.
 3. `docker compose up -d`
 4. `npm run prisma:deploy`
 5. `npm run prisma:seed`
 6. `npm run start:dev`
 
-API 基址为 `http://localhost:3000/api/v1`；Swagger 为 `http://localhost:3000/api/docs`；健康检查为 `GET /api/v1/health`。
+The API base URL is `http://localhost:3000/api/v1`; Swagger is at `http://localhost:3000/api/docs`; the health check is `GET /api/v1/health`.
 
-## API 概览
+## API overview
 
-- `POST /auth/register`、`/auth/login`、`/auth/refresh`、`/auth/logout`
+- `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`
 - `GET/PATCH /users/me`
-- `GET /exercises`、`GET /exercises/:id`
-- `POST /practice-sessions`：提交 `exerciseId`、可选 `loopRegionId` 与 `targetBpm`
-- `POST /practice-sessions/:id/recordings`：登记已直传对象存储的音频
-- `POST /recordings/:recordingId/analysis`、`GET /recordings/:recordingId/analysis`
-- `POST /practice-sessions/:id/complete`、`GET /progress/me`
+- `GET /exercises`, `GET /exercises/:id`
+- `POST /practice-sessions`: submit `exerciseId`, optional `loopRegionId`, and `targetBpm`
+- `POST /practice-sessions/:id/recordings`: register audio uploaded directly to object storage
+- `POST /recordings/:recordingId/analysis`, `GET /recordings/:recordingId/analysis`
+- `POST /practice-sessions/:id/complete`, `GET /progress/me`
 
-除健康检查与认证接口外均需要 `Authorization: Bearer <accessToken>`。
+All endpoints except health checks, authentication, and public exercise-library reads require `Authorization: Bearer <accessToken>`.
 
-## 命令
+## Commands
 
-- `npm run prisma:migrate -- --name <migration_name>`：创建迁移
-- `npm run prisma:deploy`：部署迁移
-- `npm run prisma:seed`：导入开发练习
-- `psql "$DATABASE_URL" -f prisma/seed.sql`：使用原生 SQL 导入同一份基础练习数据
-- `npm test`、`npm run lint:check`、`npm run format:check`、`npm run build`
+- `npm run prisma:migrate -- --name <migration_name>`: create a migration
+- `npm run prisma:deploy`: deploy migrations
+- `npm run prisma:seed`: load development exercises
+- `psql "$DATABASE_URL" -f prisma/seed.sql`: load the same base exercise data using raw SQL
+- `npm test`, `npm run lint:check`, `npm run format:check`, `npm run build`
 
-## 下一步
+## Next steps
 
-接入对象存储的预签名上传、队列 worker 及音频 AI 管线；随后实现曲谱解析和可选的伴奏生成。分析结果应以统一的毫秒时间轴返回，方便前端在波形、曲谱和训练回放中定位问题。
+Add pre-signed object-storage uploads, queue workers, and the audio AI pipeline. Then add score parsing and optional backing-track generation. Analysis results should use a unified millisecond timeline so the client can locate issues in the waveform, score, and practice replay.

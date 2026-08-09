@@ -1,7 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 export class CreateRecordingDto {
-  @ApiProperty({ description: '对象存储中的音频对象 key；上传由前端直传流程完成。' })
+  @ApiProperty({
+    description:
+      'Audio object key in storage; upload is completed by the client direct-upload flow.',
+  })
   @IsString()
   @MaxLength(500)
   storageKey!: string;
