@@ -1,5 +1,7 @@
 import { Difficulty, ExerciseType, PrismaClient, ScoreFormat } from '@prisma/client';
+import { ScoreEventGeneratorService } from '../src/scores/score-event-generator.service';
 const prisma = new PrismaClient();
+const scoreEventGenerator = new ScoreEventGeneratorService();
 const alphaTex =
   '\\title "1-2-3-4 Full-Range Spider"\n\\tempo 60\n.\n:4 1.6 2.6 3.6 4.6 | 1.5 2.5 3.5 4.5 | 1.4 2.4 3.4 4.4 | 1.3 2.3 3.3 4.3 | 1.2 2.2 3.2 4.2 | 1.1 2.1 3.1 4.1 | 4.1 3.1 2.1 1.1 | 4.2 3.2 2.2 1.2 | 4.3 3.3 2.3 1.3 | 4.4 3.4 2.4 1.4 | 4.5 3.5 2.5 1.5 | 4.6 3.6 2.6 1.6 |';
 async function main() {
@@ -25,15 +27,21 @@ async function main() {
       configuration: { targetBpm: 60, bpmRange: [40, 140] },
     },
   });
+  const scoreInput = { format: ScoreFormat.ALPHA_TEX, content: alphaTex, defaultBpm: 60, timeSignature: '4/4' };
+  const timeline = await scoreEventGenerator.generate(scoreInput);
   await prisma.exerciseScore.upsert({
     where: { exerciseId: exercise.id },
-    update: { format: ScoreFormat.ALPHA_TEX, content: alphaTex, defaultBpm: 60, totalMeasures: 12 },
+    update: { ...scoreInput, totalMeasures: 12, eventVersion: timeline.version, eventSourceHash: scoreEventGenerator.sourceHash(scoreInput), timeline, eventGenerationError: null, eventGeneratedAt: new Date() },
     create: {
       exerciseId: exercise.id,
       format: ScoreFormat.ALPHA_TEX,
       content: alphaTex,
       defaultBpm: 60,
       totalMeasures: 12,
+      eventVersion: timeline.version,
+      eventSourceHash: scoreEventGenerator.sourceHash(scoreInput),
+      timeline,
+      eventGeneratedAt: new Date(),
     },
   });
   const existingFullLoop = await prisma.loopRegion.findFirst({

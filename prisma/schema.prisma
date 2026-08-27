@@ -96,6 +96,11 @@ model ExerciseScore {
   totalMeasures Int
   backingTrackUrl String?
   backingTrackOffsetMs Int @default(0)
+  eventVersion Int @default(0)
+  eventSourceHash String?
+  timeline Json?
+  eventGenerationError String?
+  eventGeneratedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)

@@ -35,6 +35,14 @@ The API base URL is `http://localhost:3000/api/v1`; Swagger is at `http://localh
 
 All endpoints except health checks, authentication, and public exercise-library reads require `Authorization: Bearer <accessToken>`.
 
+Exercise-detail responses include `score.timeline`, the normalized musical timeline used for future performance scoring. Events use MIDI ticks rather than fixed milliseconds, so clients can use any BPM:
+
+```text
+milliseconds = (startTick / ticksPerQuarter) * (60_000 / currentBpm)
+```
+
+The MVP uses one BPM per score. Future tempo changes, time-signature changes, and backing-track offsets can extend this with a `tempoMap`. Exercise-list responses intentionally omit the full timeline.
+
 ## Commands
 
 - `npm run prisma:migrate -- --name <migration_name>`: create a migration

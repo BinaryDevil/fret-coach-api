@@ -15,7 +15,8 @@ export class ExercisesController {
   }
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @Get(':id') get(@Param('id') id: string) {
+  @Get(':id')
+  get(@Param('id') id: string) {
     return this.exercises.get(id);
   }
 }

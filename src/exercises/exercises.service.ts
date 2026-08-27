@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ScoreEventGeneratorService } from '../scores/score-event-generator.service';
 import { ListExercisesDto } from './dto/list-exercises.dto';
 @Injectable()
 export class ExercisesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly scoreEventGenerator: ScoreEventGeneratorService,
+  ) {}
   list(query: ListExercisesDto) {
     return this.prisma.exercise.findMany({
       where: {
@@ -31,6 +35,8 @@ export class ExercisesService {
             totalMeasures: true,
             backingTrackUrl: true,
             backingTrackOffsetMs: true,
+            eventVersion: true,
+            eventSourceHash: true,
           },
         },
         loopRegions: {
@@ -67,6 +73,9 @@ export class ExercisesService {
             totalMeasures: true,
             backingTrackUrl: true,
             backingTrackOffsetMs: true,
+            eventVersion: true,
+            eventSourceHash: true,
+            timeline: true,
           },
         },
         loopRegions: {
@@ -81,8 +90,50 @@ export class ExercisesService {
     return exercise;
   }
   async getBySlug(slug: string) {
-    const exercise = await this.prisma.exercise.findFirst({ where: { slug, isPublished: true }, select: { id: true } });
+    const exercise = await this.prisma.exercise.findFirst({
+      where: { slug, isPublished: true },
+      select: { id: true },
+    });
     if (!exercise) throw new NotFoundException('Exercise not found');
     return this.get(exercise.id);
+  }
+
+  /** Internal rebuild hook for imports, content updates, and parser upgrades. */
+  async rebuildScoreTimeline(scoreId: string, force = false) {
+    const score = await this.prisma.exerciseScore.findUnique({ where: { id: scoreId } });
+    if (!score) throw new NotFoundException('Exercise score not found');
+    const input = {
+      format: score.format,
+      content: score.content,
+      storageKey: score.storageKey,
+      defaultBpm: score.defaultBpm,
+      timeSignature: score.timeSignature,
+    };
+    if (
+      !force &&
+      !this.scoreEventGenerator.shouldGenerate(input, score.eventVersion, score.eventSourceHash)
+    )
+      return score;
+    try {
+      const timeline = await this.scoreEventGenerator.generate(input);
+      return this.prisma.exerciseScore.update({
+        where: { id: scoreId },
+        data: {
+          eventVersion: timeline.version,
+          eventSourceHash: this.scoreEventGenerator.sourceHash(input),
+          timeline,
+          eventGenerationError: null,
+          eventGeneratedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown score event generation error';
+      await this.prisma.exerciseScore.update({
+        where: { id: scoreId },
+        data: { eventGenerationError: message },
+      });
+      throw error;
+    }
   }
 }

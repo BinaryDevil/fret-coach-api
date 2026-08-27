@@ -71,6 +71,8 @@ The seed content, loop label, score title, API-facing descriptions, and project 
 
 `prisma/schema.prisma` is the authoritative source for the database models. Migrations live in `prisma/migrations/`.
 
+`ExerciseScore.timeline` is JSONB-derived scoring data. It stores events using 960 ticks per quarter and never precomputes milliseconds: `milliseconds = (startTick / ticksPerQuarter) * (60_000 / currentBpm)`. `eventSourceHash` and `eventVersion` control regeneration; changes to score content, format, or source-file key require a rebuild.
+
 ## API
 
 API base URL: `http://localhost:3001/api/v1`
