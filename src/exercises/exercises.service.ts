@@ -23,6 +23,9 @@ export class ExercisesService {
         title: true,
         description: true,
         instructions: true,
+        skillFocus: true,
+        estimatedMinutes: true,
+        libraryOrder: true,
         configuration: true,
         referenceAudioUrl: true,
         score: {
@@ -46,7 +49,7 @@ export class ExercisesService {
         createdAt: true,
         updatedAt: true,
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { libraryOrder: 'asc' },
     });
   }
   async get(id: string) {
@@ -60,6 +63,9 @@ export class ExercisesService {
         title: true,
         description: true,
         instructions: true,
+        skillFocus: true,
+        estimatedMinutes: true,
+        libraryOrder: true,
         configuration: true,
         referenceAudioUrl: true,
         score: {

@@ -29,6 +29,7 @@ The API base URL is `http://localhost:3000/api/v1`; Swagger is at `http://localh
 - `POST /auth/google`: verify a Google Identity Services ID token and issue Fret Coach JWTs
 - `GET/PATCH /users/me`
 - `GET /exercises`, `GET /exercises/:id`
+- `GET /dashboard/me`: authenticated next-practice, weekly statistics, coach note, and recommendations
 - `POST /practice-sessions`: submit `exerciseId`, optional `loopRegionId`, and `targetBpm`
 - `POST /practice-sessions/:id/recordings`: register audio uploaded directly to object storage
 - `POST /recordings/:recordingId/analysis`, `GET /recordings/:recordingId/analysis`
@@ -47,6 +48,8 @@ milliseconds = (startTick / ticksPerQuarter) * (60_000 / currentBpm)
 ```
 
 The MVP uses one BPM per score. Future tempo changes, time-signature changes, and backing-track offsets can extend this with a `tempoMap`. Exercise-list responses intentionally omit the full timeline.
+
+The development seed provides 16 original foundation exercises across chromatic finger independence, alternate picking, legato, scales, chord mobility, rhythm, and bend-target preparation. Exercise metadata includes `skillFocus`, `estimatedMinutes`, and `libraryOrder`, so library and dashboard surfaces do not need hard-coded labels or durations.
 
 ## Practice-attempt persistence
 

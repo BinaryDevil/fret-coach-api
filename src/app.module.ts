@@ -4,6 +4,7 @@ import * as Joi from 'joi';
 import { AuthModule } from './auth/auth.module';
 import { AnalysisModule } from './analysis/analysis.module';
 import { ExercisesModule } from './exercises/exercises.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PracticeSessionsModule } from './practice-sessions/practice-sessions.module';
@@ -32,6 +33,7 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     UsersModule,
     ExercisesModule,
+    DashboardModule,
     PracticeSessionsModule,
     PracticeAttemptsModule,
     ProgressModule,
