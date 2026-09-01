@@ -26,14 +26,19 @@ The API base URL is `http://localhost:3000/api/v1`; Swagger is at `http://localh
 ## API overview
 
 - `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`
+- `POST /auth/google`: verify a Google Identity Services ID token and issue Fret Coach JWTs
 - `GET/PATCH /users/me`
 - `GET /exercises`, `GET /exercises/:id`
 - `POST /practice-sessions`: submit `exerciseId`, optional `loopRegionId`, and `targetBpm`
 - `POST /practice-sessions/:id/recordings`: register audio uploaded directly to object storage
 - `POST /recordings/:recordingId/analysis`, `GET /recordings/:recordingId/analysis`
 - `POST /practice-sessions/:id/complete`, `GET /progress/me`
+- `POST /practice-attempts`, `GET /practice-attempts`, `GET /practice-attempts/:id`
+- `GET /exercises/:id/progress`
 
 All endpoints except health checks, authentication, and public exercise-library reads require `Authorization: Bearer <accessToken>`.
+
+Google sign-in is optional. Set `GOOGLE_CLIENT_ID` to the same Google OAuth Web Client ID used by the frontend. The API validates Google-issued ID tokens before using their verified email and stable Google subject to create or link an account; it does not store Google access tokens.
 
 Exercise-detail responses include `score.timeline`, the normalized musical timeline used for future performance scoring. Events use MIDI ticks rather than fixed milliseconds, so clients can use any BPM:
 
@@ -42,6 +47,16 @@ milliseconds = (startTick / ticksPerQuarter) * (60_000 / currentBpm)
 ```
 
 The MVP uses one BPM per score. Future tempo changes, time-signature changes, and backing-track offsets can extend this with a `tempoMap`. Exercise-list responses intentionally omit the full timeline.
+
+## Practice-attempt persistence
+
+The client keeps microphone audio local. It may send only a finalized practice summary and optional per-event diagnostics to `POST /practice-attempts`; the API never accepts audio bytes or an audio URL on this endpoint.
+
+Exercise detail includes `score.revision`, a stable identifier composed from the generated timeline version and source hash. Send that value unchanged with the attempt. A stale revision is rejected so results cannot be saved against a changed score.
+
+`clientRunId` must be a UUID generated once per local run. Retrying the same request returns the original attempt without incrementing progress twice. The server validates the selected loop and timeline event IDs, creates missing diagnostics for omitted target notes, and calculates every count and accuracy percentage itself.
+
+For an `EXTRA_NOTE` diagnostic, attach it to the scoreable timeline event window where the extra note occurred. It counts as an extra note and a missed target. Do not send client-computed aggregate fields such as `correctCount`, `accuracyPercent`, or `extraNoteCount`; they are deliberately rejected by request validation.
 
 ## Commands
 

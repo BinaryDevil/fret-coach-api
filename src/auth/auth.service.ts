@@ -1,7 +1,14 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { OAuth2Client } from 'google-auth-library';
+import { randomUUID } from 'node:crypto';
 import { User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
@@ -32,6 +39,50 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash)))
       throw new UnauthorizedException('Invalid email or password');
+    return this.issueTokens(user);
+  }
+  async loginWithGoogle(credential: string) {
+    const googleClientId = this.config.get<string>('GOOGLE_CLIENT_ID');
+    if (!googleClientId) throw new ServiceUnavailableException('Google sign-in is not configured');
+
+    let payload:
+      { sub?: string; email?: string; email_verified?: boolean; name?: string } | undefined;
+    try {
+      const ticket = await new OAuth2Client(googleClientId).verifyIdToken({
+        idToken: credential,
+        audience: googleClientId,
+      });
+      payload = ticket.getPayload();
+    } catch {
+      throw new UnauthorizedException('Invalid Google credential');
+    }
+    if (!payload?.sub || !payload.email || payload.email_verified !== true)
+      throw new UnauthorizedException('Google credential does not include a verified email');
+
+    const email = payload.email.toLowerCase();
+    let user = await this.prisma.user.findUnique({ where: { googleSubject: payload.sub } });
+    if (!user) {
+      const existingByEmail = await this.prisma.user.findUnique({ where: { email } });
+      if (existingByEmail?.googleSubject && existingByEmail.googleSubject !== payload.sub)
+        throw new ConflictException('This email is already linked to another Google account');
+      user = existingByEmail
+        ? await this.prisma.user.update({
+            where: { id: existingByEmail.id },
+            data: {
+              googleSubject: payload.sub,
+              displayName: existingByEmail.displayName ?? payload.name,
+            },
+          })
+        : await this.prisma.user.create({
+            data: {
+              email,
+              googleSubject: payload.sub,
+              displayName: payload.name,
+              passwordHash: await bcrypt.hash(randomUUID(), 12),
+              progress: { create: {} },
+            },
+          });
+    }
     return this.issueTokens(user);
   }
   async refresh(refreshToken: string) {

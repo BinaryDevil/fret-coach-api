@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { ScoreEventGeneratorService } from '../scores/score-event-generator.service';
+import { scoreRevision, ScoreEventGeneratorService } from '../scores/score-event-generator.service';
 import { ListExercisesDto } from './dto/list-exercises.dto';
 @Injectable()
 export class ExercisesService {
@@ -87,7 +87,15 @@ export class ExercisesService {
       },
     });
     if (!exercise) throw new NotFoundException('Exercise not found');
-    return exercise;
+    return {
+      ...exercise,
+      score: exercise.score
+        ? {
+            ...exercise.score,
+            revision: scoreRevision(exercise.score.eventVersion, exercise.score.eventSourceHash),
+          }
+        : null,
+    };
   }
   async getBySlug(slug: string) {
     const exercise = await this.prisma.exercise.findFirst({

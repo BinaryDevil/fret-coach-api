@@ -65,4 +65,22 @@ describe('ExercisesService', () => {
       }),
     );
   });
+
+  it('adds a stable score revision to exercise detail', async () => {
+    const service = new ExercisesService(
+      {
+        exercise: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'exercise-1',
+            score: { eventVersion: 1, eventSourceHash: 'timeline-hash', timeline: {} },
+          }),
+        },
+      } as never,
+      new ScoreEventGeneratorService(),
+    );
+
+    await expect(service.get('exercise-1')).resolves.toMatchObject({
+      score: { revision: 'v1:timeline-hash' },
+    });
+  });
 });

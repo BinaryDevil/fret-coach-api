@@ -6,6 +6,10 @@ import { createHash } from 'node:crypto';
 export const SCORE_EVENT_VERSION = 1;
 export const TICKS_PER_QUARTER = 960;
 
+/** Stable client-facing identifier for the generated scoring timeline. */
+export const scoreRevision = (eventVersion: number, eventSourceHash?: string | null): string =>
+  `v${eventVersion}:${eventSourceHash ?? 'unprocessed'}`;
+
 /**
  * A score event in musical ticks. Convert to the active playback timeline with:
  * milliseconds = (startTick / ticksPerQuarter) * (60_000 / currentBpm).

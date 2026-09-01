@@ -49,11 +49,22 @@ enum ScoreFormat {
   MUSIC_XML
   ALPHA_TEX
 }
+enum PracticeAttemptStatus {
+  COMPLETED
+  ABANDONED
+}
+enum PracticeNoteOutcome {
+  CORRECT
+  WRONG_PITCH
+  MISSING
+  EXTRA_NOTE
+}
 
 model User {
   id String @id @default(cuid())
   email String @unique
   passwordHash String
+  googleSubject String? @unique
   displayName String?
   handedness Handedness @default(RIGHT)
   tuning String @default("E2,A2,D3,G3,B3,E4")
@@ -63,6 +74,8 @@ model User {
   updatedAt DateTime @updatedAt
   sessions PracticeSession[]
   progress UserProgress?
+  practiceAttempts PracticeAttempt[]
+  exerciseProgress UserExerciseProgress[]
 }
 
 model Exercise {
@@ -81,6 +94,8 @@ model Exercise {
   sessions PracticeSession[]
   score ExerciseScore?
   loopRegions LoopRegion[]
+  practiceAttempts PracticeAttempt[]
+  userExerciseProgress UserExerciseProgress[]
   @@index([type, difficulty, isPublished])
 }
 
@@ -117,6 +132,7 @@ model LoopRegion {
   updatedAt DateTime @updatedAt
   exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
   sessions PracticeSession[]
+  practiceAttempts PracticeAttempt[]
   @@unique([exerciseId, startMeasure, endMeasure])
   @@index([exerciseId, startMeasure])
 }
@@ -143,6 +159,75 @@ model PracticeSession {
   @@index([userId, startedAt])
   @@index([exerciseId])
   @@index([loopRegionId])
+}
+
+model PracticeAttempt {
+  id String @id @default(uuid())
+  clientRunId String @unique
+  userId String
+  exerciseId String
+  loopRegionId String?
+  scoreRevision String
+  status PracticeAttemptStatus @default(COMPLETED)
+  bpm Int
+  countInBeats Int
+  activeDurationMs Int
+  totalTargetEvents Int
+  correctCount Int
+  wrongPitchCount Int
+  missingCount Int
+  extraNoteCount Int @default(0)
+  accuracyPercent Int
+  startedAt DateTime?
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  loopRegion LoopRegion? @relation(fields: [loopRegionId], references: [id], onDelete: SetNull)
+  noteResults PracticeNoteResult[]
+  @@index([userId, completedAt])
+  @@index([userId, exerciseId, completedAt])
+}
+
+model PracticeNoteResult {
+  id String @id @default(uuid())
+  attemptId String
+  timelineEventId String
+  eventIndex Int
+  measure Int
+  beat Int
+  startTick Int
+  expectedPitches Int[]
+  outcome PracticeNoteOutcome
+  detectedMidi Int?
+  correctedMidi Int?
+  centsOffset Int?
+  octaveShift Int?
+  confidence Float?
+  timingOffsetMs Int?
+  createdAt DateTime @default(now())
+  attempt PracticeAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  @@unique([attemptId, timelineEventId])
+  @@index([attemptId, eventIndex])
+}
+
+model UserExerciseProgress {
+  id String @id @default(uuid())
+  userId String
+  exerciseId String
+  completedPasses Int @default(0)
+  totalActiveMs Int @default(0)
+  bestAccuracyPercent Int @default(0)
+  bestBpm Int @default(0)
+  latestAccuracyPercent Int?
+  lastPracticedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  @@unique([userId, exerciseId])
+  @@index([userId, lastPracticedAt])
 }
 
 model PerformanceRecording {
