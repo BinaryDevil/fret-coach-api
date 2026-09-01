@@ -4,6 +4,7 @@
   "private": true,
   "description": "Backend API for Fret Coach",
   "scripts": {
+    "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/src/main",
     "start:dev": "nest start --watch",
