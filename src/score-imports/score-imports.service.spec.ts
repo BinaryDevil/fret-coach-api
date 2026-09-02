@@ -168,9 +168,79 @@ describe('ScoreImportsService', () => {
     const { service, storage } = createService({ scoreImport });
 
     await expect(service.sourceUrl(userId, 'import-1')).resolves.toEqual({
-      ...scoreImport,
+      id: scoreImport.id,
+      format: scoreImport.format,
+      originalFileName: scoreImport.originalFileName,
       sourceUrl: 'https://download.example',
       expiresInSeconds: 600,
+    });
+    expect(storage.createSignedDownloadUrl).toHaveBeenCalledWith(scoreImport.storageKey);
+  });
+
+  it('only allows an owner to publish a ready import', async () => {
+    const { service, prisma } = createService({
+      scoreImport: {
+        id: 'import-1',
+        status: 'PROCESSING',
+        isPublic: false,
+        publishedAt: null,
+      },
+    });
+
+    await expect(service.updateVisibility(userId, 'import-1', true)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(prisma.scoreImport.update).not.toHaveBeenCalled();
+  });
+
+  it('lists ready public scores with a lightweight timeline preview', async () => {
+    const { service, prisma } = createService();
+    prisma.scoreImport.findMany.mockResolvedValue([
+      {
+        id: 'public-import',
+        format: ScoreFormat.ALPHA_TEX,
+        originalFileName: 'public.at',
+        createdAt: new Date('2026-09-02T12:00:00.000Z'),
+        updatedAt: new Date('2026-09-02T12:00:00.000Z'),
+        publishedAt: new Date('2026-09-02T12:00:00.000Z'),
+        userSong: { id: 'song-public', title: 'Public Song', artist: 'FretCoach' },
+        timeline: {
+          version: 2,
+          defaultBpm: 100,
+          tracks: [{ id: 'lead', index: 0, name: 'Lead', instrument: 'GUITAR', tuning: [64] }],
+          events: [{ id: 'event-1' }],
+        },
+      },
+    ]);
+
+    const result = await service.listPublic({ limit: 30, query: 'public' });
+
+    expect(prisma.scoreImport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ isPublic: true, status: 'READY' }),
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }),
+    );
+    expect(result.items[0]).toMatchObject({
+      id: 'public-import',
+      song: { title: 'Public Song' },
+      timeline: { tracks: [{ id: 'lead' }] },
+    });
+    expect(result.items[0].timeline).not.toHaveProperty('events');
+  });
+
+  it('issues a public source URL only for a ready public import', async () => {
+    const scoreImport = {
+      id: 'public-import',
+      storageKey: 'user-scores/user-2/song-public/public.at',
+      format: ScoreFormat.ALPHA_TEX,
+      originalFileName: 'public.at',
+    };
+    const { service, storage } = createService({ scoreImport });
+
+    await expect(service.publicSourceUrl('public-import')).resolves.toMatchObject({
+      id: 'public-import',
+      sourceUrl: 'https://download.example',
     });
     expect(storage.createSignedDownloadUrl).toHaveBeenCalledWith(scoreImport.storageKey);
   });

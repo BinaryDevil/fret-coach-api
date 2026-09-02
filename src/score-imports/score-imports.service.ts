@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ScoreEventGeneratorService } from '../scores/score-event-generator.service';
 import { CreateScoreImportDto } from './dto/create-score-import.dto';
+import { ListPublicScoresDto } from './dto/list-public-scores.dto';
 import { ListScoreImportsDto } from './dto/list-score-imports.dto';
 import { ScoreStorageService } from './score-storage.service';
 
@@ -140,6 +141,8 @@ export class ScoreImportsService {
         format: true,
         originalFileName: true,
         parseError: true,
+        isPublic: true,
+        publishedAt: true,
         createdAt: true,
         updatedAt: true,
         timeline: true,
@@ -158,6 +161,8 @@ export class ScoreImportsService {
         format: scoreImport.format,
         originalFileName: scoreImport.originalFileName,
         parseError: scoreImport.parseError,
+        isPublic: scoreImport.isPublic,
+        publishedAt: scoreImport.publishedAt,
         createdAt: scoreImport.createdAt,
         updatedAt: scoreImport.updatedAt,
         song: scoreImport.userSong,
@@ -173,43 +178,102 @@ export class ScoreImportsService {
   async get(userId: string, importId: string) {
     const scoreImport = await this.prisma.scoreImport.findFirst({
       where: { id: importId, userId },
-      select: {
-        id: true,
-        status: true,
-        format: true,
-        originalFileName: true,
-        parseError: true,
-        createdAt: true,
-        updatedAt: true,
-        timeline: true,
-        userSong: { select: { id: true, title: true, artist: true } },
-        tracks: {
-          select: {
-            id: true,
-            sourceTrackId: true,
-            trackIndex: true,
-            name: true,
-            instrument: true,
-            tuning: true,
-            capo: true,
-          },
-          orderBy: { trackIndex: 'asc' },
-        },
-      },
+      select: this.detailSelect(),
     });
     if (!scoreImport) throw new NotFoundException('Score import not found');
+    return this.detailResponse(scoreImport);
+  }
+
+  async updateVisibility(userId: string, importId: string, isPublic: boolean) {
+    const scoreImport = await this.prisma.scoreImport.findFirst({
+      where: { id: importId, userId },
+      select: { id: true, status: true, isPublic: true, publishedAt: true },
+    });
+    if (!scoreImport) throw new NotFoundException('Score import not found');
+    if (isPublic && scoreImport.status !== 'READY') {
+      throw new BadRequestException('Only ready score imports can be made public');
+    }
+    if (scoreImport.isPublic === isPublic) {
+      return { id: scoreImport.id, isPublic, publishedAt: scoreImport.publishedAt };
+    }
+    return this.prisma.scoreImport.update({
+      where: { id: importId },
+      data: { isPublic, publishedAt: isPublic ? new Date() : null },
+      select: { id: true, isPublic: true, publishedAt: true },
+    });
+  }
+
+  async listPublic(query: ListPublicScoresDto) {
+    const cursor = query.cursor ? this.decodeCursor(query.cursor) : null;
+    const search = query.query?.trim();
+    const imports = await this.prisma.scoreImport.findMany({
+      where: {
+        isPublic: true,
+        status: 'READY',
+        ...(query.format ? { format: query.format } : {}),
+        ...(search
+          ? {
+              userSong: {
+                is: {
+                  OR: [
+                    { title: { contains: search, mode: 'insensitive' } },
+                    { artist: { contains: search, mode: 'insensitive' } },
+                  ],
+                },
+              },
+            }
+          : {}),
+        ...(cursor
+          ? {
+              OR: [
+                { createdAt: { lt: new Date(cursor.createdAt) } },
+                { createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } },
+              ],
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        format: true,
+        originalFileName: true,
+        createdAt: true,
+        updatedAt: true,
+        publishedAt: true,
+        timeline: true,
+        userSong: { select: { id: true, title: true, artist: true } },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: query.limit + 1,
+    });
+    const hasMore = imports.length > query.limit;
+    const items = imports.slice(0, query.limit);
+    const finalItem = items.at(-1);
     return {
-      id: scoreImport.id,
-      status: scoreImport.status,
-      format: scoreImport.format,
-      originalFileName: scoreImport.originalFileName,
-      parseError: scoreImport.parseError,
-      createdAt: scoreImport.createdAt,
-      updatedAt: scoreImport.updatedAt,
-      song: scoreImport.userSong,
-      timeline: scoreImport.timeline,
-      tracks: scoreImport.tracks,
+      items: items.map((scoreImport) => ({
+        id: scoreImport.id,
+        status: 'READY' as const,
+        format: scoreImport.format,
+        originalFileName: scoreImport.originalFileName,
+        createdAt: scoreImport.createdAt,
+        updatedAt: scoreImport.updatedAt,
+        publishedAt: scoreImport.publishedAt,
+        song: scoreImport.userSong,
+        timeline: this.timelinePreview(scoreImport.timeline),
+      })),
+      nextCursor:
+        hasMore && finalItem
+          ? this.encodeCursor({ createdAt: finalItem.createdAt.toISOString(), id: finalItem.id })
+          : null,
     };
+  }
+
+  async getPublic(importId: string) {
+    const scoreImport = await this.prisma.scoreImport.findFirst({
+      where: { id: importId, isPublic: true, status: 'READY' },
+      select: this.detailSelect(),
+    });
+    if (!scoreImport) throw new NotFoundException('Public score not found');
+    return this.detailResponse(scoreImport);
   }
 
   async sourceUrl(userId: string, importId: string) {
@@ -221,7 +285,23 @@ export class ScoreImportsService {
     if (scoreImport.status !== 'READY')
       throw new BadRequestException('The score source is not ready for practice');
     return {
-      ...scoreImport,
+      id: scoreImport.id,
+      format: scoreImport.format,
+      originalFileName: scoreImport.originalFileName,
+      ...(await this.storage.createSignedDownloadUrl(scoreImport.storageKey)),
+    };
+  }
+
+  async publicSourceUrl(importId: string) {
+    const scoreImport = await this.prisma.scoreImport.findFirst({
+      where: { id: importId, isPublic: true, status: 'READY' },
+      select: { id: true, storageKey: true, format: true, originalFileName: true },
+    });
+    if (!scoreImport) throw new NotFoundException('Public score not found');
+    return {
+      id: scoreImport.id,
+      format: scoreImport.format,
+      originalFileName: scoreImport.originalFileName,
       ...(await this.storage.createSignedDownloadUrl(scoreImport.storageKey)),
     };
   }
@@ -257,6 +337,72 @@ export class ScoreImportsService {
             capo: track.capo ?? null,
           }))
         : [],
+    };
+  }
+
+  private detailSelect() {
+    return {
+      id: true,
+      status: true,
+      format: true,
+      originalFileName: true,
+      parseError: true,
+      isPublic: true,
+      publishedAt: true,
+      createdAt: true,
+      updatedAt: true,
+      timeline: true,
+      userSong: { select: { id: true, title: true, artist: true } },
+      tracks: {
+        select: {
+          id: true,
+          sourceTrackId: true,
+          trackIndex: true,
+          name: true,
+          instrument: true,
+          tuning: true,
+          capo: true,
+        },
+        orderBy: { trackIndex: 'asc' as const },
+      },
+    };
+  }
+
+  private detailResponse(scoreImport: {
+    id: string;
+    status: string;
+    format: string;
+    originalFileName: string;
+    parseError: string | null;
+    isPublic: boolean;
+    publishedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+    timeline: unknown;
+    userSong: { id: string; title: string; artist: string | null };
+    tracks: Array<{
+      id: string;
+      sourceTrackId: string;
+      trackIndex: number;
+      name: string;
+      instrument: string;
+      tuning: number[];
+      capo: number | null;
+    }>;
+  }) {
+    return {
+      id: scoreImport.id,
+      status: scoreImport.status,
+      format: scoreImport.format,
+      originalFileName: scoreImport.originalFileName,
+      parseError: scoreImport.parseError,
+      isPublic: scoreImport.isPublic,
+      publishedAt: scoreImport.publishedAt,
+      createdAt: scoreImport.createdAt,
+      updatedAt: scoreImport.updatedAt,
+      song: scoreImport.userSong,
+      timeline: scoreImport.timeline,
+      tracks: scoreImport.tracks,
     };
   }
 

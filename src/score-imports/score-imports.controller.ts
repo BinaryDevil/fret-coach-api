@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { CreateScoreImportDto } from './dto/create-score-import.dto';
 import { ListScoreImportsDto } from './dto/list-score-imports.dto';
+import { UpdateScoreImportVisibilityDto } from './dto/update-score-import-visibility.dto';
 import { ScoreImportsService } from './score-imports.service';
 
 @ApiTags('score-imports')
@@ -22,6 +23,15 @@ export class ScoreImportsController {
   @Post(':id/complete')
   complete(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.scoreImports.complete(user.sub, id);
+  }
+
+  @Patch(':id/visibility')
+  updateVisibility(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateScoreImportVisibilityDto,
+  ) {
+    return this.scoreImports.updateVisibility(user.sub, id, dto.isPublic);
   }
 
   @Get(':id/source')

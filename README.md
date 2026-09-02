@@ -36,7 +36,8 @@ The API base URL is `http://localhost:3000/api/v1`; Swagger is at `http://localh
 - `POST /practice-sessions/:id/complete`, `GET /progress/me`
 - `POST /practice-attempts`, `GET /practice-attempts`, `GET /practice-attempts/:id`
 - `GET /exercises/:id/progress`
-- `POST /score-imports`, `POST /score-imports/:id/complete`, `GET /score-imports`, `GET /score-imports/:id`, `GET /score-imports/:id/source`
+- `POST /score-imports`, `POST /score-imports/:id/complete`, `PATCH /score-imports/:id/visibility`, `GET /score-imports`, `GET /score-imports/:id`, `GET /score-imports/:id/source`
+- `GET /public-scores`, `GET /public-scores/:id`, `GET /public-scores/:id/source`
 
 All endpoints except health checks, authentication, and public exercise-library reads require `Authorization: Bearer <accessToken>`.
 
@@ -51,6 +52,12 @@ Authenticated users can import private Guitar Pro (`.gp`, `.gp3`–`.gp5`, `.gpx
 5. When ready, use `GET /score-imports/:id/source` to obtain a ten-minute signed `sourceUrl` for alphaTab. Do not persist this URL.
 
 `GET /score-imports?limit=30&cursor=<opaque-cursor>` returns only the current user's imports, newest first. It includes imports that are still pending, processing, or failed. Its `timeline` is deliberately a compact track preview (no events and no signed URL); follow its `nextCursor` until it is `null`. `GET /score-imports/:id` returns the full private-import detail, including the song metadata, tracks, and scoreable timeline events. Each event's `trackId` matches `timeline.tracks[].id`, so a client can restrict pitch comparison to the selected track.
+
+### Public tab library
+
+The owner of a `READY` import can publish or unpublish it with `PATCH /score-imports/:id/visibility` and `{ "isPublic": true }`. Publishing never changes the file owner and only makes the canonical score metadata discoverable; non-ready imports cannot be published.
+
+Anyone can browse `GET /public-scores?query=<title-or-artist>&format=<format>&limit=30&cursor=<opaque-cursor>` and inspect `GET /public-scores/:id`. These responses are limited to ready, published imports and follow the same lightweight-list/full-detail shapes as private imports. Starting practice still requires Fret Coach sign-in: `GET /public-scores/:id/source` requires a bearer token and returns the short-lived alphaTab source URL. Neither public list nor detail exposes an object-storage URL or key.
 
 The completion step downloads the private upload server-side, parses it with alphaTab, writes the canonical v2 timeline, and persists the discovered tracks. A `READY` import exposes `timeline` and `tracks`; a `FAILED` import includes a safe diagnostic `parseError`. The API always scopes every import to the authenticated owner and returns `404` for another user's import.
 
