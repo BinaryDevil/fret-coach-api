@@ -45,7 +45,7 @@ All endpoints except health checks, authentication, and public exercise-library 
 
 Authenticated users can import private Guitar Pro (`.gp`, `.gp3`–`.gp5`, `.gpx`), MusicXML (`.musicxml`, `.xml`), or alphaTex (`.alphatex`, `.at`, `.txt`) files. Imported files are not public library content.
 
-1. `POST /score-imports` with `title`, optional `artist`, `format`, `fileName`, `mimeType`, and `sizeBytes` (maximum 10 MiB).
+1. `POST /score-imports` with `title`, optional `artist`, `format`, `fileName`, `mimeType`, `sizeBytes` (maximum 10 MiB), and optional `isPublic`. `isPublic: true` schedules the import for publication after successful preparation.
 2. Upload the browser `File` directly with `PUT` to `upload.uploadUrl`, using `upload.uploadHeaders`.
 3. Call `POST /score-imports/:id/complete`.
 4. Poll `GET /score-imports/:id` until the status is `READY` or `FAILED`.
@@ -55,7 +55,7 @@ Authenticated users can import private Guitar Pro (`.gp`, `.gp3`–`.gp5`, `.gpx
 
 ### Public tab library
 
-The owner of a `READY` import can publish or unpublish it with `PATCH /score-imports/:id/visibility` and `{ "isPublic": true }`. Publishing never changes the file owner and only makes the canonical score metadata discoverable; non-ready imports cannot be published.
+An upload can be scheduled for publication by passing `isPublic: true` to `POST /score-imports`; it becomes visible only after preparation reaches `READY`. The owner of an already-ready import can also publish or unpublish it with `PATCH /score-imports/:id/visibility` and `{ "isPublic": true }`. Publishing never changes the file owner and only makes the canonical score metadata discoverable.
 
 Anyone can browse `GET /public-scores?query=<title-or-artist>&format=<format>&limit=30&cursor=<opaque-cursor>` and inspect `GET /public-scores/:id`. These responses are limited to ready, published imports and follow the same lightweight-list/full-detail shapes as private imports. Starting practice still requires Fret Coach sign-in: `GET /public-scores/:id/source` requires a bearer token and returns the short-lived alphaTab source URL. Neither public list nor detail exposes an object-storage URL or key.
 

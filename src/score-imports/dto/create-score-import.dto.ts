@@ -1,6 +1,16 @@
 import { ScoreFormat } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class CreateScoreImportDto {
   @ApiProperty({ example: 'My Practice Song' })
@@ -33,4 +43,12 @@ export class CreateScoreImportDto {
   @Min(1)
   @Max(10 * 1024 * 1024)
   sizeBytes!: number;
+
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Publish to the public library automatically after successful score preparation.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isPublic?: boolean;
 }

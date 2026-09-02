@@ -58,6 +58,23 @@ describe('ScoreImportsService', () => {
     expect(prisma.userSong.create).not.toHaveBeenCalled();
   });
 
+  it('can schedule an import to publish after successful preparation', async () => {
+    const { service, prisma } = createService();
+
+    await service.create(userId, {
+      title: 'Public Song',
+      format: ScoreFormat.ALPHA_TEX,
+      fileName: 'public.at',
+      mimeType: 'text/plain',
+      sizeBytes: 100,
+      isPublic: true,
+    });
+
+    expect(prisma.scoreImport.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isPublic: true }) }),
+    );
+  });
+
   it('does not reveal another user’s import', async () => {
     const { service } = createService();
     await expect(service.get(userId, 'missing-import')).rejects.toBeInstanceOf(NotFoundException);
@@ -252,6 +269,7 @@ describe('ScoreImportsService', () => {
       storageKey: 'user-scores/user-1/song-1/private.at',
       format: ScoreFormat.ALPHA_TEX,
       status: 'UPLOAD_PENDING',
+      isPublic: true,
     };
     const { service, prisma, storage } = createService({
       scoreImport,
@@ -270,6 +288,7 @@ describe('ScoreImportsService', () => {
         data: expect.objectContaining({
           status: 'READY',
           eventVersion: 2,
+          publishedAt: expect.any(Date),
           timeline: expect.objectContaining({
             tracks: expect.arrayContaining([expect.objectContaining({ id: 't0' })]),
             events: expect.arrayContaining([

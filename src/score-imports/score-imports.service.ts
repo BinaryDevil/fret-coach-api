@@ -53,6 +53,7 @@ export class ScoreImportsService {
         mimeType: dto.mimeType,
         sizeBytes: dto.sizeBytes,
         storageKey,
+        isPublic: dto.isPublic ?? false,
       },
     });
     try {
@@ -92,6 +93,7 @@ export class ScoreImportsService {
             eventVersion: timeline.version,
             timeline,
             parseError: null,
+            publishedAt: scoreImport.isPublic ? new Date() : null,
             processedAt: new Date(),
           },
         }),
