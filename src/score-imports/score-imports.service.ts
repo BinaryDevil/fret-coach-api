@@ -8,9 +8,26 @@ import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ScoreEventGeneratorService } from '../scores/score-event-generator.service';
 import { CreateScoreImportDto } from './dto/create-score-import.dto';
+import { ListScoreImportsDto } from './dto/list-score-imports.dto';
 import { ScoreStorageService } from './score-storage.service';
 
 const MAX_SCORE_FILE_BYTES = 10 * 1024 * 1024;
+
+type Cursor = { createdAt: string; id: string };
+type StoredTimeline = {
+  version: number;
+  defaultBpm: number;
+  ticksPerQuarter: number;
+  tracks: Array<{
+    id: string;
+    index: number;
+    name: string;
+    instrument: string;
+    tuning: number[];
+    capo?: number | null;
+  }>;
+  events: unknown[];
+};
 
 @Injectable()
 export class ScoreImportsService {
@@ -103,37 +120,96 @@ export class ScoreImportsService {
     }
   }
 
-  async list(userId: string) {
-    return this.prisma.userSong.findMany({
-      where: { userId },
-      include: {
-        imports: {
-          select: {
-            id: true,
-            status: true,
-            format: true,
-            originalFileName: true,
-            eventVersion: true,
-            parseError: true,
-            createdAt: true,
-            processedAt: true,
-            tracks: { orderBy: { trackIndex: 'asc' } },
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
+  async list(userId: string, query: ListScoreImportsDto) {
+    const cursor = query.cursor ? this.decodeCursor(query.cursor) : null;
+    const imports = await this.prisma.scoreImport.findMany({
+      where: {
+        userId,
+        ...(cursor
+          ? {
+              OR: [
+                { createdAt: { lt: new Date(cursor.createdAt) } },
+                { createdAt: new Date(cursor.createdAt), id: { lt: cursor.id } },
+              ],
+            }
+          : {}),
       },
-      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        format: true,
+        originalFileName: true,
+        parseError: true,
+        createdAt: true,
+        updatedAt: true,
+        timeline: true,
+        userSong: { select: { id: true, title: true, artist: true } },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: query.limit + 1,
     });
+    const hasMore = imports.length > query.limit;
+    const items = imports.slice(0, query.limit);
+    const finalItem = items.at(-1);
+    return {
+      items: items.map((scoreImport) => ({
+        id: scoreImport.id,
+        status: scoreImport.status,
+        format: scoreImport.format,
+        originalFileName: scoreImport.originalFileName,
+        parseError: scoreImport.parseError,
+        createdAt: scoreImport.createdAt,
+        updatedAt: scoreImport.updatedAt,
+        song: scoreImport.userSong,
+        timeline: this.timelinePreview(scoreImport.timeline),
+      })),
+      nextCursor:
+        hasMore && finalItem
+          ? this.encodeCursor({ createdAt: finalItem.createdAt.toISOString(), id: finalItem.id })
+          : null,
+    };
   }
 
   async get(userId: string, importId: string) {
     const scoreImport = await this.prisma.scoreImport.findFirst({
       where: { id: importId, userId },
-      include: { userSong: true, tracks: { orderBy: { trackIndex: 'asc' } } },
+      select: {
+        id: true,
+        status: true,
+        format: true,
+        originalFileName: true,
+        parseError: true,
+        createdAt: true,
+        updatedAt: true,
+        timeline: true,
+        userSong: { select: { id: true, title: true, artist: true } },
+        tracks: {
+          select: {
+            id: true,
+            sourceTrackId: true,
+            trackIndex: true,
+            name: true,
+            instrument: true,
+            tuning: true,
+            capo: true,
+          },
+          orderBy: { trackIndex: 'asc' },
+        },
+      },
     });
     if (!scoreImport) throw new NotFoundException('Score import not found');
-    return scoreImport;
+    return {
+      id: scoreImport.id,
+      status: scoreImport.status,
+      format: scoreImport.format,
+      originalFileName: scoreImport.originalFileName,
+      parseError: scoreImport.parseError,
+      createdAt: scoreImport.createdAt,
+      updatedAt: scoreImport.updatedAt,
+      song: scoreImport.userSong,
+      timeline: scoreImport.timeline,
+      tracks: scoreImport.tracks,
+    };
   }
 
   async sourceUrl(userId: string, importId: string) {
@@ -162,5 +238,39 @@ export class ScoreImportsService {
 
   private safeFileName(fileName: string) {
     return fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+  }
+
+  private timelinePreview(timeline: unknown) {
+    if (!timeline || typeof timeline !== 'object') return null;
+    const value = timeline as Partial<StoredTimeline>;
+    if (typeof value.version !== 'number' || typeof value.defaultBpm !== 'number') return null;
+    return {
+      version: value.version,
+      defaultBpm: value.defaultBpm,
+      tracks: Array.isArray(value.tracks)
+        ? value.tracks.map((track) => ({
+            id: track.id,
+            index: track.index,
+            name: track.name,
+            instrument: track.instrument,
+            tuning: track.tuning,
+            capo: track.capo ?? null,
+          }))
+        : [],
+    };
+  }
+
+  private encodeCursor(cursor: Cursor) {
+    return Buffer.from(JSON.stringify(cursor)).toString('base64url');
+  }
+
+  private decodeCursor(encoded: string): Cursor {
+    try {
+      const cursor = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as Cursor;
+      if (!cursor.id || Number.isNaN(new Date(cursor.createdAt).getTime())) throw new Error();
+      return cursor;
+    } catch {
+      throw new BadRequestException('Invalid score import cursor');
+    }
   }
 }

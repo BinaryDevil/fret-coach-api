@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { CreateScoreImportDto } from './dto/create-score-import.dto';
+import { ListScoreImportsDto } from './dto/list-score-imports.dto';
 import { ScoreImportsService } from './score-imports.service';
 
 @ApiTags('score-imports')
@@ -23,9 +24,9 @@ export class ScoreImportsController {
     return this.scoreImports.complete(user.sub, id);
   }
 
-  @Get()
-  list(@CurrentUser() user: JwtPayload) {
-    return this.scoreImports.list(user.sub);
+  @Get(':id/source')
+  sourceUrl(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.scoreImports.sourceUrl(user.sub, id);
   }
 
   @Get(':id')
@@ -33,8 +34,8 @@ export class ScoreImportsController {
     return this.scoreImports.get(user.sub, id);
   }
 
-  @Get(':id/source')
-  sourceUrl(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.scoreImports.sourceUrl(user.sub, id);
+  @Get()
+  list(@CurrentUser() user: JwtPayload, @Query() query: ListScoreImportsDto) {
+    return this.scoreImports.list(user.sub, query);
   }
 }

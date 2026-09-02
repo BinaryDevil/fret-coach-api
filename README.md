@@ -50,6 +50,8 @@ Authenticated users can import private Guitar Pro (`.gp`, `.gp3`–`.gp5`, `.gpx
 4. Poll `GET /score-imports/:id` until the status is `READY` or `FAILED`.
 5. When ready, use `GET /score-imports/:id/source` to obtain a ten-minute signed `sourceUrl` for alphaTab. Do not persist this URL.
 
+`GET /score-imports?limit=30&cursor=<opaque-cursor>` returns only the current user's imports, newest first. It includes imports that are still pending, processing, or failed. Its `timeline` is deliberately a compact track preview (no events and no signed URL); follow its `nextCursor` until it is `null`. `GET /score-imports/:id` returns the full private-import detail, including the song metadata, tracks, and scoreable timeline events. Each event's `trackId` matches `timeline.tracks[].id`, so a client can restrict pitch comparison to the selected track.
+
 The completion step downloads the private upload server-side, parses it with alphaTab, writes the canonical v2 timeline, and persists the discovered tracks. A `READY` import exposes `timeline` and `tracks`; a `FAILED` import includes a safe diagnostic `parseError`. The API always scopes every import to the authenticated owner and returns `404` for another user's import.
 
 Create a **private** Supabase Storage bucket named `fret-coach-scores` (or set `SUPABASE_SCORE_BUCKET` to another private-bucket name). Set `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and `SUPABASE_SCORE_BUCKET` only in the API environment, such as Railway. Never put the secret key in frontend code or a Vercel environment variable. `SUPABASE_SERVICE_ROLE_KEY` remains a temporary legacy fallback for older projects.
