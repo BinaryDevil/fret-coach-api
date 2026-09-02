@@ -54,6 +54,8 @@ The completion step downloads the private upload server-side, parses it with alp
 
 Create a **private** Supabase Storage bucket named `fret-coach-scores` (or set `SUPABASE_SCORE_BUCKET` to another private-bucket name). Set `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and `SUPABASE_SCORE_BUCKET` only in the API environment, such as Railway. Never put the secret key in frontend code or a Vercel environment variable. `SUPABASE_SERVICE_ROLE_KEY` remains a temporary legacy fallback for older projects.
 
+The API sends the Supabase key only in the `apikey` header. New `sb_secret_` keys are API keys, not JWT bearer tokens.
+
 Google sign-in is optional. Set `GOOGLE_CLIENT_ID` to the same Google OAuth Web Client ID used by the frontend. The API validates Google-issued ID tokens before using their verified email and stable Google subject to create or link an account; it does not store Google access tokens.
 
 Exercise-detail responses include `score.timeline`, the normalized musical timeline used for future performance scoring. Events use MIDI ticks rather than fixed milliseconds, so clients can use any BPM:

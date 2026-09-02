@@ -16,7 +16,6 @@ export class ScoreStorageService {
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${secretKey}`,
           apikey: secretKey,
           'Content-Type': 'application/json',
         },
@@ -39,7 +38,7 @@ export class ScoreStorageService {
     const { url, secretKey, bucket } = this.settings();
     const response = await fetch(
       `${url}/storage/v1/object/${encodeURIComponent(bucket)}/${this.path(storageKey)}`,
-      { headers: { Authorization: `Bearer ${secretKey}`, apikey: secretKey } },
+      { headers: { apikey: secretKey } },
     );
     if (!response.ok)
       throw new ServiceUnavailableException('Uploaded score file could not be retrieved');
@@ -53,7 +52,6 @@ export class ScoreStorageService {
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${secretKey}`,
           apikey: secretKey,
           'Content-Type': 'application/json',
         },
