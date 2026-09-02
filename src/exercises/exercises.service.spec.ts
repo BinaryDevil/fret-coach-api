@@ -57,7 +57,7 @@ describe('ExercisesService', () => {
       expect.objectContaining({
         where: { id: 'score-1' },
         data: expect.objectContaining({
-          eventVersion: 1,
+          eventVersion: 2,
           eventSourceHash: expect.any(String),
           eventGeneratedAt: expect.any(Date),
           timeline: expect.objectContaining({ events: expect.any(Array) }),

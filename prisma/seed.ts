@@ -86,7 +86,8 @@ const launchExercises: LaunchExercise[] = [
     bpmRange: [44, 168],
     description: 'A repeating single-string line for even alternate picking.',
     instructions: 'Alternate down-up continuously. Keep pick motion short and consistent.',
-    body: ':8 1.6 2.6 3.6 4.6 4.6 3.6 2.6 1.6 | 1.5 2.5 3.5 4.5 4.5 3.5 2.5 1.5 | 1.4 2.4 3.4 4.4 4.4 3.4 2.4 1.4 |',
+    body:
+      ':8 1.6 {sd} 2.6 {su} 3.6 {sd} 4.6 {su} 4.6 {sd} 3.6 {su} 2.6 {sd} 1.6 {su} | 1.5 {sd} 2.5 {su} 3.5 {sd} 4.5 {su} 4.5 {sd} 3.5 {su} 2.5 {sd} 1.5 {su} | 1.4 {sd} 2.4 {su} 3.4 {sd} 4.4 {su} 4.4 {sd} 3.4 {su} 2.4 {sd} 1.4 {su} |',
   },
   {
     slug: 'inside-outside-picking',
@@ -203,7 +204,8 @@ const launchExercises: LaunchExercise[] = [
     bpmRange: [50, 180],
     description: 'A steady one-note groove for rhythm and pick consistency.',
     instructions: 'Use light palm muting and count eighth notes out loud.',
-    body: ':8 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 | 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 |',
+    body:
+      ':8 0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} | 0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} |',
   },
   {
     slug: 'accented-sixteenth-grid',
@@ -219,6 +221,32 @@ const launchExercises: LaunchExercise[] = [
     body: ':16 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 | 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 0.6 |',
   },
   {
+    slug: 'tremolo-picking-control',
+    type: ExerciseType.FINGER_DEXTERITY,
+    difficulty: Difficulty.INTERMEDIATE,
+    title: 'Tremolo Picking Control',
+    skillFocus: 'Tremolo picking',
+    estimatedMinutes: 6,
+    targetBpm: 64,
+    bpmRange: [40, 132],
+    description: 'Sustained notes marked for sixteenth-note tremolo picking.',
+    instructions: 'Keep the tremolo motion relaxed and even. Do not let the final notes of each sustain rush.',
+    body: ':2 7.3 {tp 2} 7.3 {tp 2} | 8.3 {tp 2} 8.3 {tp 2} |',
+  },
+  {
+    slug: 'triad-arpeggio-sweep',
+    type: ExerciseType.FINGER_DEXTERITY,
+    difficulty: Difficulty.INTERMEDIATE,
+    title: 'Triad Arpeggio Sweep',
+    skillFocus: 'Arpeggio articulation',
+    estimatedMinutes: 7,
+    targetBpm: 56,
+    bpmRange: [32, 116],
+    description: 'Three-note triads with explicit upward and downward arpeggio directions.',
+    instructions: 'Let the pick travel through the strings in one smooth motion; mute each chord before the next.',
+    body: ':2 (3.6 5.5 5.4) {au} (5.4 5.5 3.6) {ad} | (5.6 7.5 7.4) {au} (7.4 7.5 5.6) {ad} |',
+  },
+  {
     slug: 'whole-step-bend-targets',
     type: ExerciseType.FINGER_DEXTERITY,
     difficulty: Difficulty.INTERMEDIATE,
@@ -229,7 +257,8 @@ const launchExercises: LaunchExercise[] = [
     bpmRange: [32, 104],
     description: 'Reference notes and target frets for future bend-pitch feedback.',
     instructions: 'Play the target note, then match it from two frets below with a controlled bend.',
-    body: ':4 7.2 5.2 7.2 5.2 | 8.2 6.2 8.2 6.2 | 10.2 8.2 10.2 8.2 | 12.2 10.2 12.2 10.2 |',
+    body:
+      ':4 7.2 5.2{b (0 8)} 7.2 5.2{b (0 8)} | 8.2 6.2{b (0 8)} 8.2 6.2{b (0 8)} | 10.2 8.2{b (0 8)} 10.2 8.2{b (0 8)} | 12.2 10.2{b (0 8)} 12.2 10.2{b (0 8)} |',
   },
 ];
 

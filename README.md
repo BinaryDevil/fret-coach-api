@@ -49,7 +49,17 @@ milliseconds = (startTick / ticksPerQuarter) * (60_000 / currentBpm)
 
 The MVP uses one BPM per score. Future tempo changes, time-signature changes, and backing-track offsets can extend this with a `tempoMap`. Exercise-list responses intentionally omit the full timeline.
 
-The development seed provides 16 original foundation exercises across chromatic finger independence, alternate picking, legato, scales, chord mobility, rhythm, and bend-target preparation. Exercise metadata includes `skillFocus`, `estimatedMinutes`, and `libraryOrder`, so library and dashboard surfaces do not need hard-coded labels or durations.
+### Canonical score timeline
+
+`score.timeline` is a versioned FretCoach contract, independent of alphaTab's internal objects. Version 2 adds `tracks` and structured notation data, while retaining `trackIndex`, `notes`, and `techniques` for existing clients. A track has a stable `id` within `score.revision`, name, instrument class, tuning, and optional capo. Events use `trackId` when selecting a practice target.
+
+Beat-level notation is returned in `event.effects`; note-specific notation is returned in `event.notes[].effects`. The current canonical effect set includes pick direction, tremolo picking, upward/downward arpeggios, vibrato, bends with a BPM-independent pitch curve, hammer/pull relationships, slides, palm mute, let ring, harmonics, dead/ghost notes, and staccato. `destinationEventId` links applicable legato and slide effects to their deterministic target event.
+
+The client may display every effect immediately, but only pitch and timing should be treated as scoreable for now. Technique-specific grading will be introduced one effect family at a time. On a parser upgrade, incrementing the timeline version regenerates `score.revision`; clients must submit that revision with practice results.
+
+This is a JSONB-only timeline shape upgrade: there is no Prisma migration to deploy. Run `npm run prisma:seed` locally, or invoke the score rebuild path for existing imported scores, to write version-2 timelines.
+
+The development seed provides 18 original foundation exercises across chromatic finger independence, alternate picking, legato, scales, chord mobility, rhythm, tremolo, arpeggios, and bend-target preparation. Several seeds now include real alphaTex notation markers for pick direction, palm mute, tremolo picking, arpeggio direction, and whole-step bends. Exercise metadata includes `skillFocus`, `estimatedMinutes`, and `libraryOrder`, so library and dashboard surfaces do not need hard-coded labels or durations.
 
 ## Practice-attempt persistence
 
