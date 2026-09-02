@@ -1,8 +1,8 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-type SignedUploadResponse = { signedURL?: string };
-type SignedDownloadResponse = { signedURL?: string };
+/** Supabase Storage's REST API uses `url`; older variants use `signedURL`/`signedUrl`. */
+type SignedUrlResponse = { url?: string; signedURL?: string; signedUrl?: string };
 
 /** Small Supabase Storage adapter; imported scores always remain in a private bucket. */
 @Injectable()
@@ -23,11 +23,11 @@ export class ScoreStorageService {
       },
     );
     if (!response.ok) throw new ServiceUnavailableException('Unable to prepare score upload');
-    const payload = (await response.json()) as SignedUploadResponse;
-    if (!payload.signedURL)
-      throw new ServiceUnavailableException('Storage did not return an upload URL');
+    const payload = (await response.json()) as SignedUrlResponse;
+    const signedPath = payload.url ?? payload.signedURL ?? payload.signedUrl;
+    if (!signedPath) throw new ServiceUnavailableException('Storage did not return an upload URL');
     return {
-      uploadUrl: `${url}/storage/v1${payload.signedURL}`,
+      uploadUrl: `${url}/storage/v1${signedPath}`,
       uploadMethod: 'PUT' as const,
       uploadHeaders: { 'Content-Type': mimeType },
       expiresInSeconds: 600,
@@ -59,10 +59,10 @@ export class ScoreStorageService {
       },
     );
     if (!response.ok) throw new ServiceUnavailableException('Unable to prepare score download');
-    const payload = (await response.json()) as SignedDownloadResponse;
-    if (!payload.signedURL)
-      throw new ServiceUnavailableException('Storage did not return a download URL');
-    return { sourceUrl: `${url}/storage/v1${payload.signedURL}`, expiresInSeconds: 600 };
+    const payload = (await response.json()) as SignedUrlResponse;
+    const signedPath = payload.url ?? payload.signedURL ?? payload.signedUrl;
+    if (!signedPath) throw new ServiceUnavailableException('Storage did not return a download URL');
+    return { sourceUrl: `${url}/storage/v1${signedPath}`, expiresInSeconds: 600 };
   }
 
   private settings() {
