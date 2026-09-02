@@ -36,8 +36,23 @@ The API base URL is `http://localhost:3000/api/v1`; Swagger is at `http://localh
 - `POST /practice-sessions/:id/complete`, `GET /progress/me`
 - `POST /practice-attempts`, `GET /practice-attempts`, `GET /practice-attempts/:id`
 - `GET /exercises/:id/progress`
+- `POST /score-imports`, `POST /score-imports/:id/complete`, `GET /score-imports`, `GET /score-imports/:id`, `GET /score-imports/:id/source`
 
 All endpoints except health checks, authentication, and public exercise-library reads require `Authorization: Bearer <accessToken>`.
+
+### Private score import
+
+Authenticated users can import private Guitar Pro (`.gp`, `.gp3`–`.gp5`, `.gpx`), MusicXML (`.musicxml`, `.xml`), or alphaTex (`.alphatex`, `.at`, `.txt`) files. Imported files are not public library content.
+
+1. `POST /score-imports` with `title`, optional `artist`, `format`, `fileName`, `mimeType`, and `sizeBytes` (maximum 10 MiB).
+2. Upload the browser `File` directly with `PUT` to `upload.uploadUrl`, using `upload.uploadHeaders`.
+3. Call `POST /score-imports/:id/complete`.
+4. Poll `GET /score-imports/:id` until the status is `READY` or `FAILED`.
+5. When ready, use `GET /score-imports/:id/source` to obtain a ten-minute signed `sourceUrl` for alphaTab. Do not persist this URL.
+
+The completion step downloads the private upload server-side, parses it with alphaTab, writes the canonical v2 timeline, and persists the discovered tracks. A `READY` import exposes `timeline` and `tracks`; a `FAILED` import includes a safe diagnostic `parseError`. The API always scopes every import to the authenticated owner and returns `404` for another user's import.
+
+Create a **private** Supabase Storage bucket named `fret-coach-scores` (or set `SUPABASE_SCORE_BUCKET` to another private-bucket name). Set `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and `SUPABASE_SCORE_BUCKET` only in the API environment, such as Railway. Never put the secret key in frontend code or a Vercel environment variable. `SUPABASE_SERVICE_ROLE_KEY` remains a temporary legacy fallback for older projects.
 
 Google sign-in is optional. Set `GOOGLE_CLIENT_ID` to the same Google OAuth Web Client ID used by the frontend. The API validates Google-issued ID tokens before using their verified email and stable Google subject to create or link an account; it does not store Google access tokens.
 

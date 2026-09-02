@@ -149,16 +149,39 @@ export class ScoreEventGeneratorService {
     return Promise.resolve().then(() => this.generateSynchronously(input));
   }
 
+  /**
+   * Parses uploaded Guitar Pro, MusicXML, or alphaTex bytes without browser APIs.
+   * The caller owns retrieval and must only pass an already-validated user upload.
+   */
+  generateFromBytes(
+    format: ScoreFormat,
+    bytes: Uint8Array,
+    input: Pick<GenerateScoreEventsInput, 'defaultBpm' | 'timeSignature'>,
+  ): ScoreTimeline {
+    const score =
+      format === ScoreFormat.ALPHA_TEX
+        ? this.parseAlphaTex(new TextDecoder().decode(bytes))
+        : alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes, new alphaTab.Settings());
+    return this.generateFromParsedScore(score, {
+      ...input,
+      defaultBpm: score.tempo > 0 ? score.tempo : input.defaultBpm,
+    });
+  }
+
   private generateSynchronously(input: GenerateScoreEventsInput): ScoreTimeline {
     if (input.format !== ScoreFormat.ALPHA_TEX)
       throw new UnsupportedScoreEventGenerationError(input.format);
     if (!input.content)
       throw new Error('ALPHA_TEX score content is required to generate score events');
 
-    const importer = new alphaTab.importer.AlphaTexImporter();
-    importer.initFromString(input.content, new alphaTab.Settings());
-    const score = importer.readScore();
+    const score = this.parseAlphaTex(input.content);
     return this.generateFromParsedScore(score, input);
+  }
+
+  private parseAlphaTex(content: string): alphaTab.model.Score {
+    const importer = new alphaTab.importer.AlphaTexImporter();
+    importer.initFromString(content, new alphaTab.Settings());
+    return importer.readScore();
   }
 
   /**

@@ -10,6 +10,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { PracticeSessionsModule } from './practice-sessions/practice-sessions.module';
 import { PracticeAttemptsModule } from './practice-attempts/practice-attempts.module';
 import { ProgressModule } from './progress/progress.module';
+import { ScoreImportsModule } from './score-imports/score-imports.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -25,6 +26,10 @@ import { UsersModule } from './users/users.module';
         JWT_ACCESS_TTL: Joi.string().default('15m'),
         JWT_REFRESH_TTL: Joi.string().default('30d'),
         GOOGLE_CLIENT_ID: Joi.string().optional(),
+        SUPABASE_URL: Joi.string().uri().optional(),
+        SUPABASE_SECRET_KEY: Joi.string().optional(),
+        SUPABASE_SERVICE_ROLE_KEY: Joi.string().optional(),
+        SUPABASE_SCORE_BUCKET: Joi.string().default('fret-coach-scores'),
       }),
     }),
     PrismaModule,
@@ -37,6 +42,7 @@ import { UsersModule } from './users/users.module';
     PracticeSessionsModule,
     PracticeAttemptsModule,
     ProgressModule,
+    ScoreImportsModule,
   ],
 })
 export class AppModule {}

@@ -49,6 +49,12 @@ enum ScoreFormat {
   MUSIC_XML
   ALPHA_TEX
 }
+enum ScoreImportStatus {
+  UPLOAD_PENDING
+  PROCESSING
+  READY
+  FAILED
+}
 enum PracticeAttemptStatus {
   COMPLETED
   ABANDONED
@@ -76,6 +82,59 @@ model User {
   progress UserProgress?
   practiceAttempts PracticeAttempt[]
   exerciseProgress UserExerciseProgress[]
+  userSongs UserSong[]
+  scoreImports ScoreImport[]
+}
+
+model UserSong {
+  id String @id @default(cuid())
+  userId String
+  title String
+  artist String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  imports ScoreImport[]
+  @@index([userId, updatedAt])
+}
+
+model ScoreImport {
+  id String @id @default(cuid())
+  userSongId String
+  userId String
+  status ScoreImportStatus @default(UPLOAD_PENDING)
+  format ScoreFormat
+  originalFileName String
+  mimeType String
+  sizeBytes Int
+  storageKey String @unique
+  sourceHash String?
+  eventVersion Int @default(0)
+  timeline Json?
+  parseError String?
+  processedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userSong UserSong @relation(fields: [userSongId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tracks ScoreImportTrack[]
+  @@index([userId, createdAt])
+  @@index([userSongId, createdAt])
+}
+
+model ScoreImportTrack {
+  id String @id @default(cuid())
+  scoreImportId String
+  sourceTrackId String
+  trackIndex Int
+  name String
+  instrument String
+  tuning Int[]
+  capo Int?
+  createdAt DateTime @default(now())
+  scoreImport ScoreImport @relation(fields: [scoreImportId], references: [id], onDelete: Cascade)
+  @@unique([scoreImportId, sourceTrackId])
+  @@index([scoreImportId, trackIndex])
 }
 
 model Exercise {
