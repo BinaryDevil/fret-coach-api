@@ -57,7 +57,7 @@ describe('ExercisesService', () => {
       expect.objectContaining({
         where: { id: 'score-1' },
         data: expect.objectContaining({
-          eventVersion: 2,
+          eventVersion: 3,
           eventSourceHash: expect.any(String),
           eventGeneratedAt: expect.any(Date),
           timeline: expect.objectContaining({ events: expect.any(Array) }),
@@ -81,6 +81,43 @@ describe('ExercisesService', () => {
 
     await expect(service.get('exercise-1')).resolves.toMatchObject({
       score: { revision: 'v1:timeline-hash' },
+    });
+  });
+
+  it('returns canonical bend technique data unchanged on exercise detail', async () => {
+    const bendTimeline = {
+      version: 3,
+      events: [
+        {
+          id: 'bend-half-m1-b1',
+          pitches: [63],
+          technique: {
+            type: 'BEND',
+            points: [
+              { offsetTicks: 0, targetMidi: 63 },
+              { offsetTicks: 960, targetMidi: 64 },
+            ],
+          },
+        },
+      ],
+    };
+    const service = new ExercisesService(
+      {
+        exercise: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'exercise-1',
+            score: { eventVersion: 3, eventSourceHash: 'bend-hash', timeline: bendTimeline },
+          }),
+        },
+      } as never,
+      new ScoreEventGeneratorService(),
+    );
+
+    await expect(service.get('exercise-1')).resolves.toMatchObject({
+      score: {
+        revision: 'v3:bend-hash',
+        timeline: { events: [{ technique: bendTimeline.events[0].technique }] },
+      },
     });
   });
 });

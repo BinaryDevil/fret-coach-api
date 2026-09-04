@@ -3,6 +3,7 @@ import { PracticeNoteOutcome } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsIn,
@@ -15,6 +16,35 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+
+export class BendDiagnosticDto {
+  @ApiProperty()
+  @IsBoolean()
+  reachedTarget!: boolean;
+
+  @ApiProperty({ minimum: 0, maximum: 127 })
+  @IsNumber()
+  @Min(0)
+  @Max(127)
+  peakMidi!: number;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(-2400)
+  @Max(2400)
+  targetCentsError!: number;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  reachedTargetAtMs?: number;
+
+  @ApiProperty({ minimum: 0 })
+  @IsInt()
+  @Min(0)
+  holdDurationMs!: number;
+}
 
 export class CreatePracticeNoteResultDto {
   @ApiProperty()
@@ -65,6 +95,12 @@ export class CreatePracticeNoteResultDto {
   @IsOptional()
   @IsInt()
   timingOffsetMs?: number;
+
+  @ApiPropertyOptional({ type: BendDiagnosticDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BendDiagnosticDto)
+  bend?: BendDiagnosticDto;
 }
 
 export class CreatePracticeAttemptDto {

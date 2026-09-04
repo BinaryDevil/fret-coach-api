@@ -1,5 +1,9 @@
 import { ScoreFormat } from '@prisma/client';
-import { ScoreEventGeneratorService, TICKS_PER_QUARTER } from './score-event-generator.service';
+import {
+  scoreRevision,
+  ScoreEventGeneratorService,
+  TICKS_PER_QUARTER,
+} from './score-event-generator.service';
 
 describe('ScoreEventGeneratorService', () => {
   const service = new ScoreEventGeneratorService();
@@ -79,7 +83,7 @@ describe('ScoreEventGeneratorService', () => {
       timeSignature: '4/4',
     };
     const changed = { ...original, content: '.\n:4 2.6 |' };
-    expect(service.shouldGenerate(original, 2, service.sourceHash(original))).toBe(false);
+    expect(service.shouldGenerate(original, 3, service.sourceHash(original))).toBe(false);
     expect(service.shouldGenerate(changed, 1, service.sourceHash(original))).toBe(true);
   });
 
@@ -130,6 +134,81 @@ describe('ScoreEventGeneratorService', () => {
     expect(timeline.events[0]).toMatchObject({
       pitches: [43, 50],
       effects: [{ type: 'ARPEGGIO', direction: 'UP' }],
+    });
+  });
+
+  it('adds a canonical half-step bend trajectory to the event timeline', async () => {
+    const timeline = await service.generate({
+      format: ScoreFormat.ALPHA_TEX,
+      content: '.\n:4 8.3 { b (0 4) } r r r |',
+      defaultBpm: 60,
+      timeSignature: '4/4',
+    });
+
+    expect(timeline.version).toBe(3);
+    expect(timeline.events[0]).toMatchObject({
+      pitches: [63],
+      technique: {
+        type: 'BEND',
+        points: [
+          { offsetTicks: 0, targetMidi: 63 },
+          { offsetTicks: 960, targetMidi: 64 },
+        ],
+      },
+    });
+    expect(
+      scoreRevision(
+        timeline.version,
+        service.sourceHash({
+          format: ScoreFormat.ALPHA_TEX,
+          content: '.\n:4 8.3 { b (0 4) } r r r |',
+          defaultBpm: 60,
+          timeSignature: '4/4',
+        }),
+      ),
+    ).toMatch(/^v3:/);
+  });
+
+  it('adds a canonical whole-step bend trajectory to the event timeline', async () => {
+    const timeline = await service.generate({
+      format: ScoreFormat.ALPHA_TEX,
+      content: '.\n:4 7.3 { b (0 8) } r r r |',
+      defaultBpm: 55,
+      timeSignature: '4/4',
+    });
+
+    expect(timeline.events[0]).toMatchObject({
+      pitches: [62],
+      technique: {
+        type: 'BEND',
+        points: [
+          { offsetTicks: 0, targetMidi: 62 },
+          { offsetTicks: 960, targetMidi: 64 },
+        ],
+      },
+    });
+  });
+
+  it('adds a canonical bend-and-release trajectory to the event timeline', async () => {
+    const timeline = await service.generate({
+      format: ScoreFormat.ALPHA_TEX,
+      content: '.\n:2 8.3 { b (0 8 8 0) } r |',
+      defaultBpm: 50,
+      timeSignature: '4/4',
+    });
+
+    expect(timeline.events[0]).toMatchObject({
+      pitches: [63],
+      technique: {
+        type: 'BEND_RELEASE',
+        points: [
+          { offsetTicks: 0, targetMidi: 63 },
+          { offsetTicks: 640, targetMidi: 65 },
+          { offsetTicks: 1280, targetMidi: 65 },
+          { offsetTicks: 1920, targetMidi: 63 },
+        ],
+        requiredHoldTicks: 640,
+      },
     });
   });
 });

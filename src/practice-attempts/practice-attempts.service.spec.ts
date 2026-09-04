@@ -52,6 +52,13 @@ describe('PracticeAttemptsService', () => {
         eventIndex: 0,
         outcome: PracticeNoteOutcome.CORRECT,
         detectedMidi: 41,
+        bend: {
+          reachedTarget: true,
+          peakMidi: 42,
+          targetCentsError: -6,
+          reachedTargetAtMs: 410,
+          holdDurationMs: 180,
+        },
       },
     ],
   };
@@ -94,6 +101,10 @@ describe('PracticeAttemptsService', () => {
           noteResults: expect.objectContaining({
             create: expect.arrayContaining([
               expect.objectContaining({ timelineEventId: 'm1-b2-t0-v0-e1', outcome: 'MISSING' }),
+              expect.objectContaining({
+                timelineEventId: 'm1-b1-t0-v0-e0',
+                bend: expect.objectContaining({ peakMidi: 42, holdDurationMs: 180 }),
+              }),
             ]),
           }),
         }),

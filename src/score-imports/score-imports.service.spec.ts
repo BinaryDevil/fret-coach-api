@@ -287,7 +287,7 @@ describe('ScoreImportsService', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           status: 'READY',
-          eventVersion: 2,
+          eventVersion: 3,
           publishedAt: expect.any(Date),
           timeline: expect.objectContaining({
             tracks: expect.arrayContaining([expect.objectContaining({ id: 't0' })]),

@@ -33,6 +33,13 @@ type PersistedNoteResult = {
   octaveShift?: number;
   confidence?: number;
   timingOffsetMs?: number;
+  bend?: {
+    reachedTarget: boolean;
+    peakMidi: number;
+    targetCentsError: number;
+    reachedTargetAtMs?: number;
+    holdDurationMs: number;
+  };
 };
 
 @Injectable()
@@ -248,6 +255,7 @@ export class PracticeAttemptsService {
       ...(source?.octaveShift === undefined ? {} : { octaveShift: source.octaveShift }),
       ...(source?.confidence === undefined ? {} : { confidence: source.confidence }),
       ...(source?.timingOffsetMs === undefined ? {} : { timingOffsetMs: source.timingOffsetMs }),
+      ...(source?.bend === undefined ? {} : { bend: source.bend }),
     };
   }
 

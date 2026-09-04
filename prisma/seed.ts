@@ -260,6 +260,48 @@ const launchExercises: LaunchExercise[] = [
     body:
       ':4 7.2 5.2{b (0 8)} 7.2 5.2{b (0 8)} | 8.2 6.2{b (0 8)} 8.2 6.2{b (0 8)} | 10.2 8.2{b (0 8)} 10.2 8.2{b (0 8)} | 12.2 10.2{b (0 8)} 12.2 10.2{b (0 8)} |',
   },
+  {
+    slug: 'half-step-bends',
+    type: ExerciseType.FINGER_DEXTERITY,
+    difficulty: Difficulty.BEGINNER,
+    title: 'Half-Step Bend Control',
+    skillFocus: 'Bend intonation',
+    estimatedMinutes: 6,
+    targetBpm: 60,
+    bpmRange: [36, 108],
+    description: 'Raise each note exactly one semitone, then hold the target pitch.',
+    instructions:
+      'Bend smoothly from the fretted note to the target. Listen for the target before increasing tempo.',
+    body: ':2 8.3 { b (0 4) } r | 7.2 { b (0 4) } r |',
+  },
+  {
+    slug: 'whole-step-bends',
+    type: ExerciseType.FINGER_DEXTERITY,
+    difficulty: Difficulty.INTERMEDIATE,
+    title: 'Whole-Step Bend Control',
+    skillFocus: 'Bend intonation',
+    estimatedMinutes: 6,
+    targetBpm: 55,
+    bpmRange: [32, 100],
+    description: 'Build controlled whole-step bends and arrive at pitch without overshooting.',
+    instructions:
+      'Use a relaxed wrist turn. Reach the target pitch deliberately and avoid pulling it sharp.',
+    body: ':2 7.3 { b (0 8) } r | 8.2 { b (0 8) } r |',
+  },
+  {
+    slug: 'bend-and-release',
+    type: ExerciseType.FINGER_DEXTERITY,
+    difficulty: Difficulty.INTERMEDIATE,
+    title: 'Bend & Release Control',
+    skillFocus: 'Bend release timing',
+    estimatedMinutes: 7,
+    targetBpm: 50,
+    bpmRange: [30, 92],
+    description: 'Reach the target cleanly, then release back to the fretted pitch in time.',
+    instructions:
+      'Keep the fretting finger planted. Hold the target briefly, then release smoothly to the original pitch.',
+    body: ':2 8.3 { b (0 8 8 0) } r | 8.2 { b (0 8 8 0) } r |',
+  },
 ];
 
 async function seedExercise(definition: LaunchExercise, libraryOrder: number) {

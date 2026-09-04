@@ -4,11 +4,11 @@ import * as alphaTab from '@coderline/alphatab';
 import { createHash } from 'node:crypto';
 
 /**
- * Version 2 adds canonical track metadata and structured notation effects.
+ * Version 3 adds canonical bend trajectories for pitch-movement evaluation.
  * The raw score remains the rendering source; this model is the stable API and
  * practice-engine representation.
  */
-export const SCORE_EVENT_VERSION = 2;
+export const SCORE_EVENT_VERSION = 3;
 export const TICKS_PER_QUARTER = 960;
 
 /** Stable client-facing identifier for the generated scoring timeline. */
@@ -72,6 +72,21 @@ export type ScoreNote = {
   effects?: ScoreNoteEffect[];
 };
 
+/** A BPM-independent target point for bend-pitch evaluation. */
+export type BendPoint = {
+  /** Offset from the parent event's `startTick`. */
+  offsetTicks: number;
+  /** Absolute expected MIDI pitch at this point. */
+  targetMidi: number;
+};
+
+/** Canonical bend data. This is authoritative over alphaTex rendering details. */
+export type BendTechnique = {
+  type: 'BEND' | 'BEND_RELEASE';
+  points: BendPoint[];
+  requiredHoldTicks?: number;
+};
+
 export type ScoreNoteEvent = {
   id: string;
   measure: number;
@@ -90,6 +105,8 @@ export type ScoreNoteEvent = {
   techniques?: string[];
   /** Structured beat-level notation effects. */
   effects?: ScoreEffect[];
+  /** Optional, scoreable pitch trajectory for a bend event. */
+  technique?: BendTechnique;
 };
 
 /** Versioned, BPM-independent scoring data returned on exercise detail responses. */
@@ -264,6 +281,11 @@ export class ScoreEventGeneratorService {
             ...new Set([...(event.techniques ?? []), ...effects.map((effect) => effect.type)]),
           ];
         }
+        const bend = effects.find(
+          (effect): effect is Extract<ScoreNoteEffect, { type: 'BEND' }> => effect.type === 'BEND',
+        );
+        const technique = bend ? this.bendTechnique(note.midi, bend) : undefined;
+        if (technique && !event.technique) event.technique = technique;
       }
     }
 
@@ -272,7 +294,7 @@ export class ScoreEventGeneratorService {
       0,
     );
     const firstMasterBar = score.masterBars[0];
-    return {
+    const timeline: ScoreTimeline = {
       version: SCORE_EVENT_VERSION,
       ticksPerQuarter: TICKS_PER_QUARTER,
       totalTicks,
@@ -289,6 +311,8 @@ export class ScoreEventGeneratorService {
           left.voiceIndex - right.voiceIndex,
       ),
     };
+    this.assertValidTimeline(timeline);
+    return timeline;
   }
 
   private instrumentFor(track: alphaTab.model.Track, tuning: number[]): ScoreTrack['instrument'] {
@@ -373,6 +397,85 @@ export class ScoreEventGeneratorService {
       'PREBEND_RELEASE',
     ] as const;
     return values[type - 1] ?? 'CUSTOM';
+  }
+
+  private bendTechnique(
+    startingMidi: number,
+    bend: Extract<ScoreNoteEffect, { type: 'BEND' }>,
+  ): BendTechnique | undefined {
+    const points = bend.points.map((point) => ({
+      offsetTicks: point.offsetTicks,
+      targetMidi: startingMidi + point.semitones,
+    }));
+    if (!points.length || points.some((point) => !Number.isInteger(point.targetMidi)))
+      return undefined;
+
+    const peakMidi = Math.max(...points.map((point) => point.targetMidi));
+    const lastPoint = points.at(-1);
+    if (!lastPoint || peakMidi <= startingMidi) return undefined;
+
+    const isRelease =
+      bend.bendType === 'BEND_RELEASE' && Math.abs(lastPoint.targetMidi - startingMidi) <= 1;
+    if (isRelease) {
+      const peakPoints = points.filter((point) => point.targetMidi === peakMidi);
+      const requiredHoldTicks =
+        peakPoints.length > 1
+          ? peakPoints.at(-1)!.offsetTicks - peakPoints[0].offsetTicks
+          : undefined;
+      return {
+        type: 'BEND_RELEASE',
+        points,
+        ...(requiredHoldTicks ? { requiredHoldTicks } : {}),
+      };
+    }
+    if (lastPoint.targetMidi <= startingMidi) return undefined;
+    return { type: 'BEND', points };
+  }
+
+  /** Guards the stable timeline contract before it is persisted or served. */
+  private assertValidTimeline(timeline: ScoreTimeline) {
+    for (const event of timeline.events) {
+      const technique = event.technique;
+      if (!technique) continue;
+      if (!event.pitches.length)
+        throw new Error(`Bend event ${event.id} must have a fretted starting pitch`);
+      if (!technique.points.length) throw new Error(`Bend event ${event.id} has no bend points`);
+      if (technique.points[0].targetMidi !== event.pitches[0])
+        throw new Error(`Bend event ${event.id} must start at its fretted pitch`);
+
+      let previousOffset = -1;
+      for (const point of technique.points) {
+        if (
+          !Number.isInteger(point.offsetTicks) ||
+          point.offsetTicks < 0 ||
+          point.offsetTicks > event.durationTicks ||
+          point.offsetTicks < previousOffset
+        ) {
+          throw new Error(`Bend event ${event.id} has an invalid bend point offset`);
+        }
+        if (!Number.isInteger(point.targetMidi) || point.targetMidi < 0 || point.targetMidi > 127)
+          throw new Error(`Bend event ${event.id} has an invalid target MIDI pitch`);
+        previousOffset = point.offsetTicks;
+      }
+
+      const startMidi = event.pitches[0];
+      const endMidi = technique.points.at(-1)!.targetMidi;
+      const peakMidi = Math.max(...technique.points.map((point) => point.targetMidi));
+      if (technique.type === 'BEND' && endMidi <= startMidi)
+        throw new Error(`BEND event ${event.id} must end above its fretted pitch`);
+      if (
+        technique.type === 'BEND_RELEASE' &&
+        (peakMidi <= startMidi || Math.abs(endMidi - startMidi) > 1)
+      ) {
+        throw new Error(`BEND_RELEASE event ${event.id} must rise and return to its fretted pitch`);
+      }
+      if (
+        technique.requiredHoldTicks !== undefined &&
+        (!Number.isInteger(technique.requiredHoldTicks) || technique.requiredHoldTicks < 0)
+      ) {
+        throw new Error(`Bend event ${event.id} has an invalid hold duration`);
+      }
+    }
   }
 
   private bendStyle(

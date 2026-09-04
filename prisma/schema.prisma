@@ -271,6 +271,7 @@ model PracticeNoteResult {
   octaveShift Int?
   confidence Float?
   timingOffsetMs Int?
+  bend Json?
   createdAt DateTime @default(now())
   attempt PracticeAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   @@unique([attemptId, timelineEventId])
