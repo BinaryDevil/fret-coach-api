@@ -45,6 +45,15 @@ export class ScoreStorageService {
     return new Uint8Array(await response.arrayBuffer());
   }
 
+  async remove(storageKey: string) {
+    const { url, secretKey, bucket } = this.settings();
+    const response = await fetch(
+      `${url}/storage/v1/object/${encodeURIComponent(bucket)}/${this.path(storageKey)}`,
+      { method: 'DELETE', headers: { apikey: secretKey } },
+    );
+    if (!response.ok) throw new ServiceUnavailableException('Unable to remove score source');
+  }
+
   async createSignedDownloadUrl(storageKey: string) {
     const { url, secretKey, bucket } = this.settings();
     const response = await fetch(

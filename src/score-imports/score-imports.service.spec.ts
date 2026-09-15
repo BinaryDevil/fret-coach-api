@@ -35,6 +35,7 @@ describe('ScoreImportsService', () => {
         expiresInSeconds: 600,
       }),
       download: jest.fn().mockResolvedValue(overrides?.storageBytes ?? new Uint8Array()),
+      remove: jest.fn().mockResolvedValue(undefined),
     };
     const service = new ScoreImportsService(
       prisma as never,
@@ -56,23 +57,6 @@ describe('ScoreImportsService', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.userSong.create).not.toHaveBeenCalled();
-  });
-
-  it('can schedule an import to publish after successful preparation', async () => {
-    const { service, prisma } = createService();
-
-    await service.create(userId, {
-      title: 'Public Song',
-      format: ScoreFormat.ALPHA_TEX,
-      fileName: 'public.at',
-      mimeType: 'text/plain',
-      sizeBytes: 100,
-      isPublic: true,
-    });
-
-    expect(prisma.scoreImport.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ isPublic: true }) }),
-    );
   });
 
   it('does not reveal another user’s import', async () => {
@@ -194,72 +178,33 @@ describe('ScoreImportsService', () => {
     expect(storage.createSignedDownloadUrl).toHaveBeenCalledWith(scoreImport.storageKey);
   });
 
-  it('only allows an owner to publish a ready import', async () => {
-    const { service, prisma } = createService({
-      scoreImport: {
-        id: 'import-1',
-        status: 'PROCESSING',
-        isPublic: false,
-        publishedAt: null,
-      },
-    });
-
-    await expect(service.updateVisibility(userId, 'import-1', true)).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
-    expect(prisma.scoreImport.update).not.toHaveBeenCalled();
-  });
-
-  it('lists ready public scores with a lightweight timeline preview', async () => {
-    const { service, prisma } = createService();
-    prisma.scoreImport.findMany.mockResolvedValue([
-      {
-        id: 'public-import',
-        format: ScoreFormat.ALPHA_TEX,
-        originalFileName: 'public.at',
-        createdAt: new Date('2026-09-02T12:00:00.000Z'),
-        updatedAt: new Date('2026-09-02T12:00:00.000Z'),
-        publishedAt: new Date('2026-09-02T12:00:00.000Z'),
-        userSong: { id: 'song-public', title: 'Public Song', artist: 'FretCoach' },
-        timeline: {
-          version: 2,
-          defaultBpm: 100,
-          tracks: [{ id: 'lead', index: 0, name: 'Lead', instrument: 'GUITAR', tuning: [64] }],
-          events: [{ id: 'event-1' }],
-        },
-      },
-    ]);
-
-    const result = await service.listPublic({ limit: 30, query: 'public' });
-
-    expect(prisma.scoreImport.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ isPublic: true, status: 'READY' }),
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      }),
-    );
-    expect(result.items[0]).toMatchObject({
-      id: 'public-import',
-      song: { title: 'Public Song' },
-      timeline: { tracks: [{ id: 'lead' }] },
-    });
-    expect(result.items[0].timeline).not.toHaveProperty('events');
-  });
-
-  it('issues a public source URL only for a ready public import', async () => {
+  it('deletes only the owner’s arrangement source and cascades its private metadata', async () => {
     const scoreImport = {
-      id: 'public-import',
-      storageKey: 'user-scores/user-2/song-public/public.at',
-      format: ScoreFormat.ALPHA_TEX,
-      originalFileName: 'public.at',
+      id: 'import-1',
+      userSongId: 'song-1',
+      storageKey: 'user-scores/user-1/song-1/private.at',
     };
-    const { service, storage } = createService({ scoreImport });
+    const { service, prisma, storage } = createService({ scoreImport });
 
-    await expect(service.publicSourceUrl('public-import')).resolves.toMatchObject({
-      id: 'public-import',
-      sourceUrl: 'https://download.example',
+    await expect(service.remove(userId, scoreImport.id)).resolves.toEqual({ id: scoreImport.id });
+
+    expect(prisma.scoreImport.findFirst).toHaveBeenCalledWith({
+      where: { id: scoreImport.id, userId },
+      select: { id: true, userSongId: true, storageKey: true },
     });
-    expect(storage.createSignedDownloadUrl).toHaveBeenCalledWith(scoreImport.storageKey);
+    expect(storage.remove).toHaveBeenCalledWith(scoreImport.storageKey);
+    expect(prisma.userSong.delete).toHaveBeenCalledWith({ where: { id: scoreImport.userSongId } });
+  });
+
+  it('does not delete another user’s arrangement or source', async () => {
+    const { service, prisma, storage } = createService();
+
+    await expect(service.remove(userId, 'missing-import')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+
+    expect(storage.remove).not.toHaveBeenCalled();
+    expect(prisma.userSong.delete).not.toHaveBeenCalled();
   });
 
   it('parses an uploaded alphaTex score and persists canonical tracks', async () => {
@@ -269,7 +214,6 @@ describe('ScoreImportsService', () => {
       storageKey: 'user-scores/user-1/song-1/private.at',
       format: ScoreFormat.ALPHA_TEX,
       status: 'UPLOAD_PENDING',
-      isPublic: true,
     };
     const { service, prisma, storage } = createService({
       scoreImport,
@@ -288,7 +232,6 @@ describe('ScoreImportsService', () => {
         data: expect.objectContaining({
           status: 'READY',
           eventVersion: 3,
-          publishedAt: expect.any(Date),
           timeline: expect.objectContaining({
             tracks: expect.arrayContaining([expect.objectContaining({ id: 't0' })]),
             events: expect.arrayContaining([

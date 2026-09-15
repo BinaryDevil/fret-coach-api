@@ -1,11 +1,21 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { CreateScoreImportDto } from './dto/create-score-import.dto';
 import { ListScoreImportsDto } from './dto/list-score-imports.dto';
-import { UpdateScoreImportVisibilityDto } from './dto/update-score-import-visibility.dto';
 import { ScoreImportsService } from './score-imports.service';
 
 @ApiTags('score-imports')
@@ -25,15 +35,6 @@ export class ScoreImportsController {
     return this.scoreImports.complete(user.sub, id);
   }
 
-  @Patch(':id/visibility')
-  updateVisibility(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: UpdateScoreImportVisibilityDto,
-  ) {
-    return this.scoreImports.updateVisibility(user.sub, id, dto.isPublic);
-  }
-
   @Get(':id/source')
   sourceUrl(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.scoreImports.sourceUrl(user.sub, id);
@@ -42,6 +43,12 @@ export class ScoreImportsController {
   @Get(':id')
   get(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.scoreImports.get(user.sub, id);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.scoreImports.remove(user.sub, id);
   }
 
   @Get()

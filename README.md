@@ -36,8 +36,7 @@ The API base URL is `http://localhost:3000/api/v1`; Swagger is at `http://localh
 - `POST /practice-sessions/:id/complete`, `GET /progress/me`
 - `POST /practice-attempts`, `GET /practice-attempts`, `GET /practice-attempts/:id`
 - `GET /exercises/:id/progress`
-- `POST /score-imports`, `POST /score-imports/:id/complete`, `PATCH /score-imports/:id/visibility`, `GET /score-imports`, `GET /score-imports/:id`, `GET /score-imports/:id/source`
-- `GET /public-scores`, `GET /public-scores/:id`, `GET /public-scores/:id/source`
+- `POST /score-imports`, `POST /score-imports/:id/complete`, `GET /score-imports`, `GET /score-imports/:id`, `GET /score-imports/:id/source`, `DELETE /score-imports/:id`
 
 All endpoints except health checks, authentication, and public exercise-library reads require `Authorization: Bearer <accessToken>`.
 
@@ -45,7 +44,7 @@ All endpoints except health checks, authentication, and public exercise-library 
 
 Authenticated users can import private Guitar Pro (`.gp`, `.gp3`–`.gp5`, `.gpx`), MusicXML (`.musicxml`, `.xml`), or alphaTex (`.alphatex`, `.at`, `.txt`) files. Imported files are not public library content.
 
-1. `POST /score-imports` with `title`, optional `artist`, `format`, `fileName`, `mimeType`, `sizeBytes` (maximum 10 MiB), and optional `isPublic`. `isPublic: true` schedules the import for publication after successful preparation.
+1. `POST /score-imports` with `title`, optional `artist`, `format`, `fileName`, `mimeType`, and `sizeBytes` (maximum 10 MiB).
 2. Upload the browser `File` directly with `PUT` to `upload.uploadUrl`, using `upload.uploadHeaders`.
 3. Call `POST /score-imports/:id/complete`.
 4. Poll `GET /score-imports/:id` until the status is `READY` or `FAILED`.
@@ -53,13 +52,9 @@ Authenticated users can import private Guitar Pro (`.gp`, `.gp3`–`.gp5`, `.gpx
 
 `GET /score-imports?limit=30&cursor=<opaque-cursor>` returns only the current user's imports, newest first. It includes imports that are still pending, processing, or failed. Its `timeline` is deliberately a compact track preview (no events and no signed URL); follow its `nextCursor` until it is `null`. `GET /score-imports/:id` returns the full private-import detail, including the song metadata, tracks, and scoreable timeline events. Each event's `trackId` matches `timeline.tracks[].id`, so a client can restrict pitch comparison to the selected track.
 
-### Public tab library
+The owner can remove an arrangement with `DELETE /score-imports/:id`. This deletes its private source file and cascades deletion to its import, discovered tracks, and song metadata. Other users receive `404` for the arrangement and no source URL.
 
-An upload can be scheduled for publication by passing `isPublic: true` to `POST /score-imports`; it becomes visible only after preparation reaches `READY`. The owner of an already-ready import can also publish or unpublish it with `PATCH /score-imports/:id/visibility` and `{ "isPublic": true }`. Publishing never changes the file owner and only makes the canonical score metadata discoverable.
-
-Anyone can browse `GET /public-scores?query=<title-or-artist>&format=<format>&limit=30&cursor=<opaque-cursor>` and inspect `GET /public-scores/:id`. These responses are limited to ready, published imports and follow the same lightweight-list/full-detail shapes as private imports. Starting practice still requires Fret Coach sign-in: `GET /public-scores/:id/source` requires a bearer token and returns the short-lived alphaTab source URL. Neither public list nor detail exposes an object-storage URL or key.
-
-The completion step downloads the private upload server-side, parses it with alphaTab, writes the canonical v2 timeline, and persists the discovered tracks. A `READY` import exposes `timeline` and `tracks`; a `FAILED` import includes a safe diagnostic `parseError`. The API always scopes every import to the authenticated owner and returns `404` for another user's import.
+The completion step downloads the private upload server-side, parses it with alphaTab, writes the canonical v3 timeline, and persists the discovered tracks. A `READY` import exposes `timeline` and `tracks`; a `FAILED` import includes a safe diagnostic `parseError`. The API always scopes every import to the authenticated owner and returns `404` for another user's import.
 
 Create a **private** Supabase Storage bucket named `fret-coach-scores` (or set `SUPABASE_SCORE_BUCKET` to another private-bucket name). Set `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and `SUPABASE_SCORE_BUCKET` only in the API environment, such as Railway. Never put the secret key in frontend code or a Vercel environment variable. `SUPABASE_SERVICE_ROLE_KEY` remains a temporary legacy fallback for older projects.
 

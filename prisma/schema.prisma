@@ -112,8 +112,6 @@ model ScoreImport {
   eventVersion Int @default(0)
   timeline Json?
   parseError String?
-  isPublic Boolean @default(false)
-  publishedAt DateTime?
   processedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -122,7 +120,6 @@ model ScoreImport {
   tracks ScoreImportTrack[]
   @@index([userId, createdAt])
   @@index([userSongId, createdAt])
-  @@index([isPublic, status, createdAt])
 }
 
 model ScoreImportTrack {
