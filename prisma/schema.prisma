@@ -118,6 +118,7 @@ model ScoreImport {
   userSong UserSong @relation(fields: [userSongId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   tracks ScoreImportTrack[]
+  practiceAttempts PracticeAttempt[]
   @@index([userId, createdAt])
   @@index([userSongId, createdAt])
 }
@@ -227,8 +228,12 @@ model PracticeAttempt {
   id String @id @default(uuid())
   clientRunId String @unique
   userId String
-  exerciseId String
+  exerciseId String?
+  scoreImportId String?
   loopRegionId String?
+  trackId String?
+  passageStartMeasure Int?
+  passageEndMeasure Int?
   scoreRevision String
   status PracticeAttemptStatus @default(COMPLETED)
   bpm Int
@@ -245,11 +250,13 @@ model PracticeAttempt {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  exercise Exercise? @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  scoreImport ScoreImport? @relation(fields: [scoreImportId], references: [id], onDelete: Cascade)
   loopRegion LoopRegion? @relation(fields: [loopRegionId], references: [id], onDelete: SetNull)
   noteResults PracticeNoteResult[]
   @@index([userId, completedAt])
   @@index([userId, exerciseId, completedAt])
+  @@index([userId, scoreImportId, completedAt])
 }
 
 model PracticeNoteResult {

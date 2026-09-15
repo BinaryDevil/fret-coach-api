@@ -128,4 +128,52 @@ describe('PracticeAttemptsService', () => {
     await expect(service.create('user-1', dto)).resolves.toBe(existing);
     expect(prisma.exercise.findFirst).not.toHaveBeenCalled();
   });
+
+  it('persists a private arrangement attempt for the selected track and measure range', async () => {
+    const create = jest.fn((input: { data: Record<string, unknown> }) => input.data);
+    const tx = { practiceAttempt: { create } };
+    const prisma = {
+      practiceAttempt: { findUnique: jest.fn().mockResolvedValue(null) },
+      scoreImport: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'import-1',
+          eventVersion: 3,
+          sourceHash: 'private-score-hash',
+          timeline: {
+            ...timeline,
+            version: 3,
+            tracks: [{ id: 't0', index: 0, name: 'Lead', instrument: 'GUITAR', tuning: [64] }],
+            events: timeline.events.map((event) => ({ ...event, trackId: 't0' })),
+          },
+        }),
+      },
+      $transaction: jest.fn((callback: (transactionClient: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+      ),
+    };
+    const service = new PracticeAttemptsService(prisma as never);
+
+    const attempt = await service.create('user-1', {
+      ...dto,
+      exerciseId: undefined,
+      scoreImportId: 'import-1',
+      trackId: 't0',
+      passageStartMeasure: 1,
+      passageEndMeasure: 1,
+      scoreRevision: 'v3:private-score-hash',
+    });
+
+    expect(attempt).toMatchObject({
+      scoreImportId: 'import-1',
+      trackId: 't0',
+      passageStartMeasure: 1,
+      passageEndMeasure: 1,
+      totalTargetEvents: 2,
+      accuracyPercent: 50,
+    });
+    expect(prisma.scoreImport.findFirst).toHaveBeenCalledWith({
+      where: { id: 'import-1', userId: 'user-1', status: 'READY' },
+      select: { id: true, eventVersion: true, sourceHash: true, timeline: true },
+    });
+  });
 });

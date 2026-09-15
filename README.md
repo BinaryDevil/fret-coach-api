@@ -86,9 +86,9 @@ The development seed provides 18 original foundation exercises across chromatic 
 
 The client keeps microphone audio local. It may send only a finalized practice summary and optional per-event diagnostics to `POST /practice-attempts`; the API never accepts audio bytes or an audio URL on this endpoint.
 
-Exercise detail includes `score.revision`, a stable identifier composed from the generated timeline version and source hash. Send that value unchanged with the attempt. A stale revision is rejected so results cannot be saved against a changed score.
+Exercise detail and ready private-arrangement detail include `score.revision`, a stable identifier composed from the generated timeline version and source hash. Send that value unchanged with the attempt. A stale revision is rejected so results cannot be saved against a changed score.
 
-`clientRunId` must be a UUID generated once per local run. Retrying the same request returns the original attempt without incrementing progress twice. The server validates the selected loop and timeline event IDs, creates missing diagnostics for omitted target notes, and calculates every count and accuracy percentage itself.
+`clientRunId` must be a UUID generated once per local run. Retrying the same request returns the original attempt without incrementing progress twice. A curated attempt sends `exerciseId` and optional `loopRegionId`; a private-arrangement attempt sends `scoreImportId`, `trackId`, and an inclusive `passageStartMeasure`/`passageEndMeasure` range. The server scopes private arrangements to their owner, validates the selected track and timeline event IDs, creates missing diagnostics for omitted target notes, and calculates every count and accuracy percentage itself. Private attempts are deleted with their arrangement.
 
 For an `EXTRA_NOTE` diagnostic, attach it to the scoreable timeline event window where the extra note occurred. It counts as an extra note and a missed target. Do not send client-computed aggregate fields such as `correctCount`, `accuracyPercent`, or `extraNoteCount`; they are deliberately rejected by request validation.
 

@@ -11,6 +11,11 @@ export class ListPracticeAttemptsDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  scoreImportId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   cursor?: string;
 
   @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })

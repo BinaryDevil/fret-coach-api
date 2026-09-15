@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { ScoreEventGeneratorService } from '../scores/score-event-generator.service';
+import { scoreRevision, ScoreEventGeneratorService } from '../scores/score-event-generator.service';
 import { CreateScoreImportDto } from './dto/create-score-import.dto';
 import { ListScoreImportsDto } from './dto/list-score-imports.dto';
 import { ScoreStorageService } from './score-storage.service';
@@ -247,6 +247,8 @@ export class ScoreImportsService {
       format: true,
       originalFileName: true,
       parseError: true,
+      eventVersion: true,
+      sourceHash: true,
       createdAt: true,
       updatedAt: true,
       timeline: true,
@@ -272,6 +274,8 @@ export class ScoreImportsService {
     format: string;
     originalFileName: string;
     parseError: string | null;
+    eventVersion: number;
+    sourceHash: string | null;
     createdAt: Date;
     updatedAt: Date;
     timeline: unknown;
@@ -292,6 +296,7 @@ export class ScoreImportsService {
       format: scoreImport.format,
       originalFileName: scoreImport.originalFileName,
       parseError: scoreImport.parseError,
+      score: { revision: scoreRevision(scoreImport.eventVersion, scoreImport.sourceHash) },
       createdAt: scoreImport.createdAt,
       updatedAt: scoreImport.updatedAt,
       song: scoreImport.userSong,

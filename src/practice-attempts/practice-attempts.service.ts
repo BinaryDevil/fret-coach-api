@@ -57,34 +57,74 @@ export class PracticeAttemptsService {
       return existing;
     }
 
-    const exercise = await this.prisma.exercise.findFirst({
-      where: { id: dto.exerciseId, isPublished: true },
-      include: { score: true },
-    });
-    if (!exercise?.score) throw new NotFoundException('Playable exercise not found');
+    const isPrivateAttempt = dto.scoreImportId !== undefined;
+    if (isPrivateAttempt === (dto.exerciseId !== undefined))
+      throw new BadRequestException(
+        'An attempt must target either an exercise or a private arrangement',
+      );
 
-    const currentRevision = scoreRevision(
-      exercise.score.eventVersion,
-      exercise.score.eventSourceHash,
-    );
-    if (dto.scoreRevision !== currentRevision)
-      throw new ConflictException('Score revision is stale; reload the exercise before saving');
+    let exerciseId: string | undefined;
+    let scoreImportId: string | undefined;
+    let loopRegionId: string | undefined;
+    let trackId: string | undefined;
+    let passageStartMeasure: number | undefined;
+    let passageEndMeasure: number | undefined;
+    let currentRevision: string;
+    let targetEvents: TargetEvent[];
 
-    const timeline = this.readTimeline(exercise.score.timeline);
-    const loopRegion = dto.loopRegionId
-      ? await this.prisma.loopRegion.findFirst({
-          where: { id: dto.loopRegionId, exerciseId: exercise.id },
-        })
-      : null;
-    if (dto.loopRegionId && !loopRegion)
-      throw new BadRequestException('Loop region does not belong to exercise');
-
-    this.assertBpmInRange(dto.bpm, exercise.configuration);
-    const targetEvents = this.targetEvents(
-      timeline,
-      loopRegion?.startMeasure,
-      loopRegion?.endMeasure,
-    );
+    if (isPrivateAttempt) {
+      const passage = this.privatePassage(dto);
+      const scoreImport = await this.prisma.scoreImport.findFirst({
+        where: { id: dto.scoreImportId, userId, status: 'READY' },
+        select: { id: true, eventVersion: true, sourceHash: true, timeline: true },
+      });
+      if (!scoreImport) throw new NotFoundException('Private arrangement not found');
+      currentRevision = scoreRevision(scoreImport.eventVersion, scoreImport.sourceHash);
+      if (dto.scoreRevision !== currentRevision)
+        throw new ConflictException(
+          'Score revision is stale; reload the arrangement before saving',
+        );
+      const timeline = this.readTimeline(scoreImport.timeline);
+      if (!timeline.tracks.some((track) => track.id === passage.trackId))
+        throw new BadRequestException('The selected track does not belong to the arrangement');
+      if (passage.endMeasure > timeline.totalMeasures)
+        throw new BadRequestException('The selected passage is outside the arrangement');
+      scoreImportId = scoreImport.id;
+      trackId = passage.trackId;
+      passageStartMeasure = passage.startMeasure;
+      passageEndMeasure = passage.endMeasure;
+      targetEvents = this.targetEvents(
+        timeline,
+        passage.startMeasure,
+        passage.endMeasure,
+        passage.trackId,
+      );
+    } else {
+      if (dto.trackId || dto.passageStartMeasure || dto.passageEndMeasure)
+        throw new BadRequestException(
+          'Private passage fields are not valid for an exercise attempt',
+        );
+      const exercise = await this.prisma.exercise.findFirst({
+        where: { id: dto.exerciseId, isPublished: true },
+        include: { score: true },
+      });
+      if (!exercise?.score) throw new NotFoundException('Playable exercise not found');
+      currentRevision = scoreRevision(exercise.score.eventVersion, exercise.score.eventSourceHash);
+      if (dto.scoreRevision !== currentRevision)
+        throw new ConflictException('Score revision is stale; reload the exercise before saving');
+      const timeline = this.readTimeline(exercise.score.timeline);
+      const loopRegion = dto.loopRegionId
+        ? await this.prisma.loopRegion.findFirst({
+            where: { id: dto.loopRegionId, exerciseId: exercise.id },
+          })
+        : null;
+      if (dto.loopRegionId && !loopRegion)
+        throw new BadRequestException('Loop region does not belong to exercise');
+      this.assertBpmInRange(dto.bpm, exercise.configuration);
+      exerciseId = exercise.id;
+      loopRegionId = loopRegion?.id;
+      targetEvents = this.targetEvents(timeline, loopRegion?.startMeasure, loopRegion?.endMeasure);
+    }
     if (targetEvents.length === 0)
       throw new BadRequestException('The selected score range has no scoreable note events');
 
@@ -94,8 +134,12 @@ export class PracticeAttemptsService {
     const attemptData = {
       clientRunId: dto.clientRunId,
       userId,
-      exerciseId: exercise.id,
-      loopRegionId: loopRegion?.id,
+      exerciseId,
+      scoreImportId,
+      loopRegionId,
+      trackId,
+      passageStartMeasure,
+      passageEndMeasure,
       scoreRevision: currentRevision,
       bpm: dto.bpm,
       countInBeats: dto.countInBeats,
@@ -117,15 +161,17 @@ export class PracticeAttemptsService {
           data: attemptData,
           include: { noteResults: { orderBy: { eventIndex: 'asc' } } },
         });
-        await this.updateExerciseProgress(
-          tx,
-          userId,
-          exercise.id,
-          dto.activeDurationMs,
-          counts.accuracyPercent,
-          dto.bpm,
-          completedAt,
-        );
+        if (exerciseId) {
+          await this.updateExerciseProgress(
+            tx,
+            userId,
+            exerciseId,
+            dto.activeDurationMs,
+            counts.accuracyPercent,
+            dto.bpm,
+            completedAt,
+          );
+        }
         return attempt;
       });
     } catch (error) {
@@ -142,11 +188,19 @@ export class PracticeAttemptsService {
 
   async list(userId: string, query: ListPracticeAttemptsDto) {
     const attempts = await this.prisma.practiceAttempt.findMany({
-      where: { userId, ...(query.exerciseId ? { exerciseId: query.exerciseId } : {}) },
+      where: {
+        userId,
+        ...(query.exerciseId ? { exerciseId: query.exerciseId } : {}),
+        ...(query.scoreImportId ? { scoreImportId: query.scoreImportId } : {}),
+      },
       select: {
         id: true,
         exerciseId: true,
+        scoreImportId: true,
         loopRegionId: true,
+        trackId: true,
+        passageStartMeasure: true,
+        passageEndMeasure: true,
         scoreRevision: true,
         status: true,
         bpm: true,
@@ -197,7 +251,12 @@ export class PracticeAttemptsService {
     return timeline;
   }
 
-  private targetEvents(timeline: ScoreTimeline, startMeasure?: number, endMeasure?: number) {
+  private targetEvents(
+    timeline: ScoreTimeline,
+    startMeasure?: number,
+    endMeasure?: number,
+    trackId?: string,
+  ) {
     return timeline.events
       .map((event, eventIndex) => ({ ...event, eventIndex }))
       .filter(
@@ -205,8 +264,25 @@ export class PracticeAttemptsService {
           !event.isRest &&
           event.pitches.length > 0 &&
           (startMeasure === undefined || event.measure >= startMeasure) &&
-          (endMeasure === undefined || event.measure <= endMeasure),
+          (endMeasure === undefined || event.measure <= endMeasure) &&
+          (trackId === undefined || event.trackId === trackId),
       );
+  }
+
+  private privatePassage(dto: CreatePracticeAttemptDto) {
+    if (
+      !dto.trackId ||
+      dto.passageStartMeasure === undefined ||
+      dto.passageEndMeasure === undefined ||
+      dto.passageStartMeasure > dto.passageEndMeasure ||
+      dto.loopRegionId
+    )
+      throw new BadRequestException('A private attempt requires a valid track and measure range');
+    return {
+      trackId: dto.trackId,
+      startMeasure: dto.passageStartMeasure,
+      endMeasure: dto.passageEndMeasure,
+    };
   }
 
   private buildResults(

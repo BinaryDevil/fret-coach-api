@@ -126,6 +126,8 @@ describe('ScoreImportsService', () => {
       format: ScoreFormat.ALPHA_TEX,
       originalFileName: 'private.at',
       parseError: null,
+      eventVersion: 3,
+      sourceHash: 'private-score-hash',
       createdAt: new Date('2026-09-02T12:00:00.000Z'),
       updatedAt: new Date('2026-09-02T12:00:00.000Z'),
       userSong: { id: 'song-1', title: 'Private Song', artist: null },
@@ -152,6 +154,7 @@ describe('ScoreImportsService', () => {
 
     await expect(service.get(userId, 'import-1')).resolves.toMatchObject({
       song: { id: 'song-1', title: 'Private Song' },
+      score: { revision: 'v3:private-score-hash' },
       timeline: { events: [{ id: 'm1-b1-t0-v0-e0', trackId: 't0' }] },
       tracks: [{ sourceTrackId: 't0' }],
     });

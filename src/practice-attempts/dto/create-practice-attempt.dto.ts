@@ -108,9 +108,32 @@ export class CreatePracticeAttemptDto {
   @IsUUID()
   clientRunId!: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'Curated Technique exercise ID' })
+  @IsOptional()
   @IsString()
-  exerciseId!: string;
+  exerciseId?: string;
+
+  @ApiPropertyOptional({ description: 'Private arrangement import ID' })
+  @IsOptional()
+  @IsString()
+  scoreImportId?: string;
+
+  @ApiPropertyOptional({ description: 'Private-arrangement track ID selected for the passage' })
+  @IsOptional()
+  @IsString()
+  trackId?: string;
+
+  @ApiPropertyOptional({ minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  passageStartMeasure?: number;
+
+  @ApiPropertyOptional({ minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  passageEndMeasure?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
