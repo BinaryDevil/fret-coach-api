@@ -64,10 +64,13 @@ describe('PracticeAttemptsController', () => {
     practiceAttempt: {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
+      findMany: jest.fn(),
     },
     scoreImport: {
       findFirst: jest.fn(),
     },
+    attemptCorrection: { create: jest.fn() },
+    pilotTelemetryEvent: { create: jest.fn() },
     $transaction: jest.fn(),
   };
 
@@ -88,6 +91,16 @@ describe('PracticeAttemptsController', () => {
     prisma.practiceAttempt.findFirst.mockImplementation(
       ({ where }: { where: { userId: string } }) =>
         where.userId === 'user-1' ? savedAttempt : null,
+    );
+    prisma.practiceAttempt.findMany.mockResolvedValue([]);
+    prisma.attemptCorrection.create.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) => ({
+        id: 'correction-1',
+        ...data,
+      }),
+    );
+    prisma.pilotTelemetryEvent.create.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) => ({ id: 'telemetry-1', ...data }),
     );
     prisma.$transaction.mockImplementation(
       (
@@ -187,5 +200,84 @@ describe('PracticeAttemptsController', () => {
 
     expect(prisma.scoreImport.findFirst).not.toHaveBeenCalled();
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('returns ordered private evidence with the first attempt as its baseline', async () => {
+    prisma.practiceAttempt.findMany.mockResolvedValue([
+      { id: 'baseline', noteResults: [{ eventIndex: 0 }], corrections: [] },
+      { id: 'later', noteResults: [{ eventIndex: 0 }], corrections: [] },
+    ]);
+
+    const response = await request(server)
+      .get(
+        '/practice-attempts/private/import-1/history?trackId=t0&passageStartMeasure=1&passageEndMeasure=1',
+      )
+      .expect(200);
+
+    const history = response.body as { baselineAttemptId: string; items: Array<{ id: string }> };
+    expect(history.baselineAttemptId).toBe('baseline');
+    expect(history.items.map((attempt) => attempt.id)).toEqual(['baseline', 'later']);
+    expect(prisma.practiceAttempt.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          trackId: 't0',
+          passageStartMeasure: 1,
+          passageEndMeasure: 1,
+        }),
+        orderBy: [{ completedAt: 'asc' }, { id: 'asc' }],
+      }),
+    );
+  });
+
+  it('retains a correction separately without changing the private attempt', async () => {
+    savedAttempt = { id: 'attempt-1', userId: 'user-1' };
+    const originalAttempt = { ...savedAttempt };
+
+    await request(server)
+      .post('/practice-attempts/attempt-1/corrections')
+      .send({ subject: 'INTERVENTION', isHelpful: false, note: 'Try a slower tempo.' })
+      .expect(201);
+
+    expect(prisma.attemptCorrection.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ attemptId: 'attempt-1' }) }),
+    );
+    expect(savedAttempt).toEqual(originalAttempt);
+  });
+
+  it('requires consent and rejects raw-audio fields for pilot telemetry', async () => {
+    const telemetry = { scoreImportId: 'import-1', eventType: 'ATTEMPT_FINISHED' };
+    await request(server).post('/practice-attempts/telemetry').send(telemetry).expect(400);
+    await request(server)
+      .post('/practice-attempts/telemetry')
+      .send({ ...telemetry, consent: true, audioUrl: 'https://audio.example/private.wav' })
+      .expect(400);
+    await request(server)
+      .post('/practice-attempts/telemetry')
+      .send({ ...telemetry, consent: true, audioBytes: 'AAECAw==' })
+      .expect(400);
+    await request(server)
+      .post('/practice-attempts/telemetry')
+      .send({ ...telemetry, consent: true, outcome: 'completed' })
+      .expect(201);
+  });
+
+  it('does not expose private history, corrections, or telemetry to another player', async () => {
+    savedAttempt = { id: 'attempt-1', userId: 'user-1' };
+    await request(server)
+      .get(
+        '/practice-attempts/private/import-1/history?trackId=t0&passageStartMeasure=1&passageEndMeasure=1',
+      )
+      .set('x-user-id', 'user-2')
+      .expect(404);
+    await request(server)
+      .post('/practice-attempts/attempt-1/corrections')
+      .set('x-user-id', 'user-2')
+      .send({ subject: 'DIAGNOSIS', isHelpful: false })
+      .expect(404);
+    await request(server)
+      .post('/practice-attempts/telemetry')
+      .set('x-user-id', 'user-2')
+      .send({ scoreImportId: 'import-1', eventType: 'RETURNED', consent: true })
+      .expect(404);
   });
 });

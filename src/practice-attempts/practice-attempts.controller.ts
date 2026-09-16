@@ -4,6 +4,9 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { CreatePracticeAttemptDto } from './dto/create-practice-attempt.dto';
+import { CreateAttemptCorrectionDto } from './dto/create-attempt-correction.dto';
+import { CreatePilotTelemetryDto } from './dto/create-pilot-telemetry.dto';
+import { PrivateAttemptHistoryDto } from './dto/private-attempt-history.dto';
 import { ListPracticeAttemptsDto } from './dto/list-practice-attempts.dto';
 import { PracticeAttemptsService } from './practice-attempts.service';
 
@@ -19,9 +22,32 @@ export class PracticeAttemptsController {
     return this.attempts.create(user.sub, dto);
   }
 
+  @Post('telemetry')
+  telemetry(@CurrentUser() user: JwtPayload, @Body() dto: CreatePilotTelemetryDto) {
+    return this.attempts.recordTelemetry(user.sub, dto);
+  }
+
+  @Post(':id/corrections')
+  correction(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateAttemptCorrectionDto,
+  ) {
+    return this.attempts.createCorrection(user.sub, id, dto);
+  }
+
   @Get()
   list(@CurrentUser() user: JwtPayload, @Query() query: ListPracticeAttemptsDto) {
     return this.attempts.list(user.sub, query);
+  }
+
+  @Get('private/:scoreImportId/history')
+  privateHistory(
+    @CurrentUser() user: JwtPayload,
+    @Param('scoreImportId') scoreImportId: string,
+    @Query() query: PrivateAttemptHistoryDto,
+  ) {
+    return this.attempts.privateHistory(user.sub, scoreImportId, query);
   }
 
   @Get(':id')

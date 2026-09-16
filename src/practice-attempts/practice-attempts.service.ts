@@ -16,6 +16,9 @@ import {
   CreatePracticeNoteResultDto,
 } from './dto/create-practice-attempt.dto';
 import { ListPracticeAttemptsDto } from './dto/list-practice-attempts.dto';
+import { CreateAttemptCorrectionDto } from './dto/create-attempt-correction.dto';
+import { CreatePilotTelemetryDto } from './dto/create-pilot-telemetry.dto';
+import { PrivateAttemptHistoryDto } from './dto/private-attempt-history.dto';
 
 type TargetEvent = ScoreNoteEvent & { eventIndex: number };
 
@@ -229,6 +232,79 @@ export class PracticeAttemptsService {
     });
     if (!attempt) throw new NotFoundException('Practice attempt not found');
     return attempt;
+  }
+
+  async privateHistory(userId: string, scoreImportId: string, query: PrivateAttemptHistoryDto) {
+    if (query.passageStartMeasure > query.passageEndMeasure)
+      throw new BadRequestException('The selected passage range is invalid');
+    const scoreImport = await this.prisma.scoreImport.findFirst({
+      where: { id: scoreImportId, userId },
+      select: { id: true },
+    });
+    if (!scoreImport) throw new NotFoundException('Private arrangement not found');
+    const items = await this.prisma.practiceAttempt.findMany({
+      where: {
+        userId,
+        scoreImportId: scoreImport.id,
+        trackId: query.trackId,
+        passageStartMeasure: query.passageStartMeasure,
+        passageEndMeasure: query.passageEndMeasure,
+      },
+      include: {
+        noteResults: { orderBy: { eventIndex: 'asc' } },
+        corrections: { orderBy: { createdAt: 'asc' } },
+      },
+      orderBy: [{ completedAt: 'asc' }, { id: 'asc' }],
+    });
+    return { baselineAttemptId: items.at(0)?.id ?? null, items };
+  }
+
+  async createCorrection(userId: string, attemptId: string, dto: CreateAttemptCorrectionDto) {
+    const attempt = await this.prisma.practiceAttempt.findFirst({
+      where: { id: attemptId, userId, scoreImportId: { not: null } },
+      select: { id: true },
+    });
+    if (!attempt) throw new NotFoundException('Private practice attempt not found');
+    return this.prisma.attemptCorrection.create({
+      data: {
+        userId,
+        attemptId: attempt.id,
+        subject: dto.subject,
+        isHelpful: dto.isHelpful,
+        note: dto.note,
+      },
+    });
+  }
+
+  async recordTelemetry(userId: string, dto: CreatePilotTelemetryDto) {
+    if (!dto.consent)
+      throw new BadRequestException('Explicit consent is required for pilot telemetry');
+    const scoreImport = await this.prisma.scoreImport.findFirst({
+      where: { id: dto.scoreImportId, userId },
+      select: { id: true },
+    });
+    if (!scoreImport) throw new NotFoundException('Private arrangement not found');
+    if (dto.attemptId) {
+      const attempt = await this.prisma.practiceAttempt.findFirst({
+        where: { id: dto.attemptId, userId, scoreImportId: scoreImport.id },
+        select: { id: true },
+      });
+      if (!attempt) throw new NotFoundException('Private practice attempt not found');
+    }
+    return this.prisma.pilotTelemetryEvent.create({
+      data: {
+        userId,
+        scoreImportId: scoreImport.id,
+        attemptId: dto.attemptId,
+        eventType: dto.eventType,
+        outcome: dto.outcome,
+        reason: dto.reason,
+        trackId: dto.trackId,
+        passageStartMeasure: dto.passageStartMeasure,
+        passageEndMeasure: dto.passageEndMeasure,
+        consentedAt: new Date(),
+      },
+    });
   }
 
   async exerciseProgress(userId: string, exerciseId: string) {

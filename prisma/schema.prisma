@@ -65,6 +65,22 @@ enum PracticeNoteOutcome {
   MISSING
   EXTRA_NOTE
 }
+enum AttemptCorrectionSubject {
+  DIAGNOSIS
+  INTERVENTION
+}
+enum PilotTelemetryEventType {
+  SETUP_OUTCOME
+  INPUT_QUALITY_OUTCOME
+  PASSAGE_SELECTED
+  ATTEMPT_STARTED
+  ATTEMPT_FINISHED
+  ATTEMPT_ABANDONED
+  ATTEMPT_UNASSESSABLE
+  REVIEW_SHOWN
+  CORRECTION_SUBMITTED
+  RETURNED
+}
 
 model User {
   id String @id @default(cuid())
@@ -81,6 +97,8 @@ model User {
   sessions PracticeSession[]
   progress UserProgress?
   practiceAttempts PracticeAttempt[]
+  attemptCorrections AttemptCorrection[]
+  telemetryEvents PilotTelemetryEvent[]
   exerciseProgress UserExerciseProgress[]
   userSongs UserSong[]
   scoreImports ScoreImport[]
@@ -119,6 +137,7 @@ model ScoreImport {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   tracks ScoreImportTrack[]
   practiceAttempts PracticeAttempt[]
+  telemetryEvents PilotTelemetryEvent[]
   @@index([userId, createdAt])
   @@index([userSongId, createdAt])
 }
@@ -254,9 +273,46 @@ model PracticeAttempt {
   scoreImport ScoreImport? @relation(fields: [scoreImportId], references: [id], onDelete: Cascade)
   loopRegion LoopRegion? @relation(fields: [loopRegionId], references: [id], onDelete: SetNull)
   noteResults PracticeNoteResult[]
+  corrections AttemptCorrection[]
+  telemetryEvents PilotTelemetryEvent[]
   @@index([userId, completedAt])
   @@index([userId, exerciseId, completedAt])
   @@index([userId, scoreImportId, completedAt])
+}
+
+model AttemptCorrection {
+  id String @id @default(uuid())
+  userId String
+  attemptId String
+  subject AttemptCorrectionSubject
+  isHelpful Boolean
+  note String?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempt PracticeAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  @@index([attemptId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model PilotTelemetryEvent {
+  id String @id @default(uuid())
+  userId String
+  scoreImportId String
+  attemptId String?
+  eventType PilotTelemetryEventType
+  outcome String?
+  reason String?
+  trackId String?
+  passageStartMeasure Int?
+  passageEndMeasure Int?
+  consentedAt DateTime
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scoreImport ScoreImport @relation(fields: [scoreImportId], references: [id], onDelete: Cascade)
+  attempt PracticeAttempt? @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  @@index([scoreImportId, createdAt])
+  @@index([userId, createdAt])
+  @@index([attemptId])
 }
 
 model PracticeNoteResult {
