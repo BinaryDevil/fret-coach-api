@@ -1,8 +1,10 @@
 # Fret Coach API
 
-Fret Coach provides a backend foundation for guitar practice and performance feedback. Its first feature is a practice library where users choose chromatic, scale, or finger-dexterity exercises, view tablature, follow a BPM, and loop selected measures.
+FretCoach provides the backend for private, evidence-first guitar practice: import a player-owned arrangement, select a passage, persist attempts, and compare later performances. A curated technique library supports focused interventions.
 
-This is not a quiz product. The service does not store answer keys or model practice as right or wrong answers.
+Read [project status](docs/project-context.md) for current challenges and unfinished work, [domain context](CONTEXT.md) for vocabulary, and [AGENTS.md](AGENTS.md) for development rules.
+
+This is not a quiz product. Expected score events support performance diagnostics; diagnostic correctness counts do not establish mastery or input reliability.
 
 ## Current architecture boundary
 
@@ -15,13 +17,13 @@ At this stage, the project only defines the asynchronous API contract and persis
 ## Local setup
 
 1. `npm install`
-2. `cp .env.example .env`, then replace both JWT secrets for production.
+2. `cp .env.example .env`, configure database/storage and JWT secrets, and set `PORT=3001` when running beside the web app.
 3. `docker compose up -d`
 4. `npm run prisma:deploy`
 5. `npm run prisma:seed`
 6. `npm run start:dev`
 
-The API base URL is `http://localhost:3000/api/v1`; Swagger is at `http://localhost:3000/api/docs`; the health check is `GET /api/v1/health`.
+With `PORT=3001`, the API base URL is `http://localhost:3001/api/v1`; Swagger is at `http://localhost:3001/api/docs`; the health check is `GET /api/v1/health`. The API defaults to port 3000 when unset. Seed only to load/update development exercises; the private-practice migrations do not require seed data.
 
 ## API overview
 
@@ -100,6 +102,12 @@ For an `EXTRA_NOTE` diagnostic, attach it to the scoreable timeline event window
 - `psql "$DATABASE_URL" -f prisma/seed.sql`: load the same base exercise data using raw SQL
 - `npm test`, `npm run lint:check`, `npm run format:check`, `npm run build`
 
-## Next steps
+## Private history and research
 
-Add pre-signed object-storage uploads, queue workers, and the audio AI pipeline. Then add score parsing and optional backing-track generation. Analysis results should use a unified millisecond timeline so the client can locate issues in the waveform, score, and practice replay.
+`GET /practice-attempts/private/:scoreImportId/history` requires `trackId`, `passageStartMeasure`, and `passageEndMeasure` query parameters. It returns matching attempts oldest first, including note results and corrections. Its `baselineAttemptId` is the earliest saved attempt, without reliability, revision, or tempo comparability guarantees.
+
+`POST /practice-attempts/:id/corrections` accepts `subject` (DIAGNOSIS or INTERVENTION), `isHelpful`, and an optional note, preserving the original attempt. `POST /practice-attempts/telemetry` requires explicit consent, an owner-scoped import, and a structured event type/context. Consult Swagger/DTOs for allowed fields; audio fields are rejected. Arrangement deletion cascades related attempts, corrections, and telemetry.
+
+## Next work
+
+Validate the private-song vertical slice and its evidence contract with the web client. See [project status](docs/project-context.md) for specific integration, baseline, input, deletion-recovery, pilot, and release gates. Signed score uploads and parsing already exist; cloud audio workers and backing-track generation are deferred directions.

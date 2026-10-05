@@ -1,145 +1,43 @@
-# Fret Coach — Project Context
+# FretCoach API — Status and unfinished work
 
-> This file is the persistent handoff record for cross-session and cross-device development. Update it whenever product direction, a key technical decision, or an API contract changes.
+Reviewed 2026-10-04 against source and live GitHub issues. This is an implementation snapshot, not deployment or pilot evidence.
 
-## Product goal
+## Product goal and challenge
 
-Fret Coach is a web product for guitar learners. It helps users practice techniques and complete songs, and will gradually provide feedback based on recorded performances.
+Help returning self-taught guitarists master failing passages in their own songs through a private practice loop: arrangement → assessable passage → input-quality check → attempt → evidence-backed review → focused intervention → re-attempt and comparison.
 
-It is not a quiz product: answer keys and correctness scores are not part of the core practice model.
+The API owns private data, canonical score timelines, persistence, and account isolation. The sibling web repository owns input capture, playback, evaluation, and presentation. The active product specification is [web issue #1](https://github.com/BinaryDevil/fret-coach-web/issues/1), still open. The challenge is validating trustworthy pitch/onset assessment and useful interventions, rather than merely storing results. A supported import is not necessarily assessable, and one clean attempt does not establish mastery.
 
-Long-term flow:
+## Implemented foundation
 
-```text
-Practice library / full-song practice → performance recording → asynchronous AI analysis → pitch, rhythm, bend, and technique feedback
-```
+| Capability                    | Evidence and limits                                                                                                                                                                                               |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Accounts and curated practice | JWT/Google authentication, public exercise reads, sessions, dashboard, progress. Technique progress remains separate from song mastery.                                                                           |
+| Private arrangements          | Signed upload, server-side alphaTab parsing, canonical v3 timeline, owner-scoped list/detail/source/deletion. Public publishing removed. [API #1](https://github.com/BinaryDevil/fret-coach-api/issues/1) closed. |
+| Attempts                      | Private track/measure targets and curated targets, revision checks, retry identity, server-calculated diagnostic counts. [API #2](https://github.com/BinaryDevil/fret-coach-api/issues/2) closed.                 |
+| History and research          | Exact-passage history, separate corrections, consented structured telemetry, deletion cascades. [API #3](https://github.com/BinaryDevil/fret-coach-api/issues/3) closed.                                          |
+| Legacy recording analysis     | Registration and queued analysis records exist; an audio-analysis worker is not implemented.                                                                                                                      |
 
-## Current stage: Practice library
+Source authorities are `prisma/schema.prisma`, `src/score-imports/`, `src/scores/`, and `src/practice-attempts/`. See [README](../README.md) for setup/contracts and [CONTEXT](../CONTEXT.md) for vocabulary.
 
-The current scope is limited to the practice library and basic practice records. It does not yet include recording input, AI evaluation, real-time pitch detection, score uploads, or backing-track generation.
+## Unfulfilled work
 
-The product is currently in **guest practice mode**: users can go from “Start a session” to the practice library and an individual exercise without signing in. The client still sends credentials automatically when an authenticated session exists. Guests do not create practice records, so practice-session creation and completion plus progress endpoints still require authentication.
+These are product requirements and review findings, not newly accepted API tickets. All existing API issues are closed; verify live issues before choosing new work.
 
-Users can:
+- **Reliable baseline/comparability:** history currently chooses the earliest saved attempt for the exact track/range. It does not select by input reliability or separate comparisons by revision or tempo. Define those rules with the web evaluator before claiming the first reliable baseline is delivered.
+- **Evidence contract:** diagnostic aggregates alone do not establish input confidence, product-defined pitch/onset criteria, or repeated mastery. Determine which evidence and criteria version must persist across both experiences. Corrections must preserve historical measurements.
+- **Integration:** verify import → passage → input check → attempt → persisted review → comparison → deletion across web/API. API tests alone do not prove this journey.
+- **Real input:** validate permission, noise/bleed, detector/onset behavior, and latency with a real guitar at relevant milestones. Simulator results do not establish microphone reliability.
+- **Deletion recovery:** storage deletion precedes the database cascade; a database failure can leave metadata without its source. Resolve retries/recovery before claiming operationally robust deletion.
+- **Pilot:** verify consent/event emission/deletion and define a continue/revise/stop rubric before recruitment. No discovery or pilot outcomes are established here.
+- **Release:** verify target-database migrations, storage behavior, and deployed client/API compatibility. This review did not deploy migrations or run production checks.
 
-1. Browse chromatic, scale, and finger-dexterity exercises.
-2. View tablature.
-3. Select a BPM and loop range.
-4. Start and complete a practice session, saving duration and daily streaks.
+Prioritize the private-song vertical slice. Cloud audio workers, broad formats, library expansion, complex AI, public sharing, and pricing experiments are deferred pending evidence.
 
-## Score and playback approach
+## Operations and handoff
 
-The client uses **alphaTab**; do not draw tablature manually with Canvas.
+Deploy existing migrations with `npm run prisma:deploy` against the intended database. Private-arrangement, attempt, and research migrations need deployment independently of source commits. Tickets #1–#3 need no seed data; seed only to load/update development exercises. Timeline rebuilding is a separate derived-data operation.
 
-- Supported formats: `GUITAR_PRO`, `MUSIC_XML`, and `ALPHA_TEX`.
-- alphaTex can be read directly from the API's `score.content`.
-- Guitar Pro and MusicXML will later load from object-storage URLs; the database already stores `storageKey`.
-- A backing `<audio>` element or Web Audio is the sole time source. alphaTab provides the playback cursor, current beat/note highlighting, scrolling, and score synchronization.
-- `LoopRegion` stores loop configuration by measure range.
+Use `PORT=3001` alongside the web app on port 3000; the API defaults to 3000. Keep secrets out of docs. `scripts/migrate-to-neon.sh` was introduced as unused; its presence does not prove a database-provider migration occurred.
 
-First exercise:
-
-- Slug: `chromatic-1-2-3-4`
-- Title: `1-2-3-4 Full-Range Spider`
-- Format: alphaTex
-- Default tempo: 60 BPM
-- Content: play 1-2-3-4 from the low E string to the high E string, then return to the low E string (12 measures total)
-- Loop: measures 1–12 (`Full Loop`)
-
-The seed content, loop label, score title, API-facing descriptions, and project documentation are English-only.
-
-## Technology stack
-
-- Node.js + TypeScript + NestJS
-- PostgreSQL (currently Supabase) + Prisma
-- REST API + Swagger
-- JWT access tokens + refresh tokens
-- Docker Compose for optional local PostgreSQL
-- ESLint, Prettier, and Jest
-
-## Domain models
-
-| Model                                                                  | Purpose                                                                  |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `User`                                                                 | Account, handedness, tuning, timezone, and refresh-token hash            |
-| `Exercise`                                                             | Exercise title, type, description, and training configuration            |
-| `ExerciseScore`                                                        | alphaTab score, default BPM, time signature, and backing-track resources |
-| `LoopRegion`                                                           | A repeatable measure range within an exercise                            |
-| `PracticeSession`                                                      | User-selected loop, BPM, duration, and status                            |
-| `UserProgress`                                                         | Total sessions, total duration, and daily streaks                        |
-| `PerformanceRecording` / `PerformanceAnalysis` / `PerformanceFeedback` | Reserved for future audio AI analysis                                    |
-
-`prisma/schema.prisma` is the authoritative source for the database models. Migrations live in `prisma/migrations/`.
-
-`ExerciseScore.timeline` is JSONB-derived scoring data. It stores events using 960 ticks per quarter and never precomputes milliseconds: `milliseconds = (startTick / ticksPerQuarter) * (60_000 / currentBpm)`. `eventSourceHash` and `eventVersion` control regeneration; changes to score content, format, or source-file key require a rebuild.
-
-## API
-
-API base URL: `http://localhost:3001/api/v1`
-
-Swagger: `http://localhost:3001/api/docs`
-
-Health check: `GET /health`
-
-Authentication:
-
-- `POST /auth/register`
-- `POST /auth/login`
-- `POST /auth/refresh`
-- `POST /auth/logout`
-
-Public practice-library reads (an authenticated client may optionally send `Authorization: Bearer <accessToken>`):
-
-- `GET /exercises`
-- `GET /exercises/slug/chromatic-1-2-3-4`
-
-The following endpoints require `Authorization: Bearer <accessToken>`:
-
-- `GET /exercises/:id`
-- `POST /practice-sessions`
-- `POST /practice-sessions/:id/complete`
-- `GET /progress/me`
-
-Create-session request:
-
-```json
-{
-  "exerciseId": "<exercise.id>",
-  "loopRegionId": "<optional loopRegion.id>",
-  "targetBpm": 60
-}
-```
-
-## Local development
-
-```bash
-npm install
-cp .env.example .env
-# Set DATABASE_URL and JWT secrets; never commit .env
-npm run prisma:deploy
-npm run prisma:seed
-npm run start:dev
-```
-
-The frontend normally uses port `3000`; set the backend `PORT` to `3001` in `.env`.
-
-Raw SQL seed data:
-
-```bash
-psql "$DATABASE_URL" -f prisma/seed.sql
-```
-
-## Known notes
-
-- `joi` must use `import * as Joi from 'joi'`; otherwise it is `undefined` at runtime.
-- The production start script is `node dist/src/main` because the current TypeScript build output is under `dist/src/`.
-- Prisma warns that the `prisma.seed` package.json configuration will be deprecated. This does not block development; migrate it to `prisma.config.ts` in the future.
-- Do not commit `.env` or `node_modules`. Inject Supabase connection strings and JWT secrets independently on each device.
-
-## Next priorities
-
-1. Capture guitar audio input in the frontend and define the recording-upload flow.
-2. Build the alphaTab exercise-detail page, BPM controls, and loop playback in the frontend.
-3. Add more exercises and a content-management workflow.
-4. Add pre-signed object-storage uploads for Guitar Pro, MusicXML, and backing-track files.
-5. Add a background queue, then implement pitch, rhythm, bend, and technique analysis on a unified millisecond timeline.
+Handoffs should record commits, checks actually run, outstanding contracts, and migration/deployment status. Keep GitHub as the tracker and update this snapshot as facts change.
